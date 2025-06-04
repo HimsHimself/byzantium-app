@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Byzantium</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* bg-slate-900 */
+            color: #D1D5DB; /* text-gray-300 */
+        }
+        .login-card {
+            background-color: #1F2937; /* bg-gray-800 */
+            border: 1px solid #374151; /* border-gray-700 */
+        }
+        .btn-primary {
+            background-color: #7C3AED; /* bg-purple-600 */
+        }
+        .btn-primary:hover {
+            background-color: #6D28D9; /* bg-purple-700 */
+        }
+        .form-input {
+            background-color: #374151; /* bg-gray-700 */
+            border-color: #4B5563; /* border-gray-600 */
+            color: #D1D5DB;
+        }
+        .form-input:focus {
+            border-color: #7C3AED; /* border-purple-600 */
+            ring-color: #7C3AED;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+    <div class="login-card p-8 md:p-12 rounded-xl shadow-2xl w-full max-w-md">
+        <h1 class="text-3xl font-bold text-white text-center mb-2">Byzantium</h1>
+        <p class="text-center text-gray-400 mb-8">Access Your Sanctuary</p>
+
+        {% if error %}
+            <div class="bg-red-500/20 border border-red-700 text-red-300 px-4 py-3 rounded-md mb-6 text-sm" role="alert">
+                <p>{{ error }}</p>
+            </div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('login') }}">
+            <div class="mb-6">
+                <label for="password" class="block mb-2 text-sm font-medium text-gray-300">Password</label>
+                <input type="password" name="password" id="password" class="form-input block w-full p-3 rounded-md focus:ring-1 focus:outline-none" required>
+            </div>
+            <button type="submit" class="btn-primary w-full text-white font-semibold py-3 px-4 rounded-md transition-colors duration-300">Unlock</button>
+        </form>
+    </div>
+</body>
+</html>
