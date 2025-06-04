@@ -3,7 +3,7 @@ import psycopg2
 
 # Get the database URL from the environment variable
 db_url = os.environ.get("DATABASE_URL")
-
+ 
 if not db_url:
     raise Exception("DATABASE_URL environment variable is not set.")
 
