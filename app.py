@@ -1,24 +1,41 @@
-from flask import Flask
 import os
+import psycopg2
+from flask import Flask
 
-# Create an instance of the Flask class
 app = Flask(__name__)
 
-# The default route to show a welcome message
+# Default route
 @app.route('/')
 def hello():
     return "Hello from Byzantium! The web service is running."
 
-# A route to test database connection (we'll make this work later)
+# New database test route
 @app.route('/db_test')
 def db_test():
-    # This will fail for now, but we'll connect it properly soon
-    database_url = os.getenv("DATABASE_URL")
-    if database_url:
-        return f"Database URL is configured."
-    else:
-        return "Database URL is NOT configured."
+    conn = None
+    try:
+        # Get the database URL from the environment variable
+        db_url = os.environ.get("DATABASE_URL")
+        if not db_url:
+            return "DATABASE_URL environment variable is not set.", 500
 
-# This part is not needed by Gunicorn but is useful for local testing
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+        # Establish the connection
+        conn = psycopg2.connect(db_url)
+        # Create a cursor
+        cur = conn.cursor()
+        # Execute a simple query to get the PostgreSQL version
+        cur.execute("SELECT version();")
+        # Fetch the result
+        db_version = cur.fetchone()
+        # Close the cursor
+        cur.close()
+        # Return a success message with the version
+        return f"Database connection successful!<br/>PostgreSQL version: {db_version[0]}"
+
+    except Exception as e:
+        # Return an error message if anything goes wrong
+        return f"Database connection failed: {e}", 500
+    finally:
+        # Make sure to close the connection
+        if conn:
+            conn.close()
