@@ -3,125 +3,134 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Byzantium - Your Personal Knowledge Hub</title>
+    <title>Byzantium Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #111827; /* bg-slate-900 */
-            color: #D1D5DB; /* text-gray-300 */
+            background-color: #f8fafc; /* bg-slate-50 */
+            color: #1e293b; /* text-slate-800 */
         }
-        .hero-gradient {
-            background: linear-gradient(120deg, #3b0764 0%, #1e1b4b 100%);
+        .sidebar {
+            background-color: #ffffff; /* bg-white */
+            border-right: 1px solid #e2e8f0; /* border-slate-200 */
         }
-        .feature-card {
-            background-color: #1F2937; /* bg-gray-800 */
-            border: 1px solid #374151; /* border-gray-700 */
+        .sidebar-link {
+            color: #475569; /* text-slate-600 */
+            transition: all 0.2s ease-in-out;
+            border-left: 3px solid transparent;
         }
-        .btn-primary {
-            background-color: #7C3AED; /* bg-purple-600 */
-            transition: background-color 0.3s ease;
+        .sidebar-link:hover, .sidebar-link.active {
+            color: #4B0082; /* Imperial Purple */
+            background-color: #f1f5f9; /* bg-slate-100 */
+            border-left-color: #4B0082; /* Imperial Purple */
         }
-        .btn-primary:hover {
-            background-color: #6D28D9; /* bg-purple-700 */
+        .header {
+            background-color: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
         }
-        .navbar {
-            background-color: rgba(17, 24, 39, 0.8); /* bg-slate-900 with opacity for backdrop blur */
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+        .byzantine-gold {
+            color: #DAA520; /* Ochre/Gold */
+        }
+        .byzantine-purple-text {
+            color: #4B0082;
+        }
+        .content-card {
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
         }
     </style>
 </head>
-<body class="antialiased">
+<body class="flex h-screen antialiased">
 
-    <!-- Navigation Bar -->
-    <nav class="navbar sticky top-0 z-50 shadow-md">
-        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
-            <a href="{{ url_for('hello') }}" class="text-2xl font-bold text-white">Byzantium</a>
-            <div>
-                <a href="{{ url_for('logout') }}" class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Logout</a>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Hero Section -->
-    <header class="hero-gradient text-white py-20 md:py-32">
-        <div class="container mx-auto px-6 text-center">
-            <h1 class="text-4xl md:text-6xl font-extrabold leading-tight mb-6">
-                Unlock Your Insights. <span class="block md:inline">Empower Your Thoughts.</span>
-            </h1>
-            <p class="text-lg md:text-xl text-purple-200 mb-10 max-w-2xl mx-auto">
-                Byzantium is your personal sanctuary for notes, ideas, and intelligent dialogue.
-                Capture everything, query with AI, and rediscover your knowledge.
-            </p>
-            <a href="#features" class="btn-primary text-white font-semibold px-8 py-4 rounded-lg text-lg shadow-lg transform hover:scale-105 transition-transform duration-300">
-                Explore Features
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar w-64 space-y-2 py-4 px-2 fixed inset-y-0 left-0 transform md:translate-x-0 -translate-x-full transition-transform duration-200 ease-in-out z-30 shadow-lg">
+        <div class="px-4 py-2 mb-4">
+            <a href="{{ url_for('hello') }}" class="text-2xl font-bold byzantine-purple-text">
+                Byzantium <span class="byzantine-gold text-xl align-super">&dagger;</span>
             </a>
         </div>
-    </header>
-
-    <!-- Features Section -->
-    <section id="features" class="py-16 md:py-24 bg-slate-900">
-        <div class="container mx-auto px-6">
-            <div class="text-center mb-12 md:mb-16">
-                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">The Pillars of Byzantium</h2>
-                <p class="text-gray-400 max-w-xl mx-auto">Organized. Intelligent. Secure.</p>
-            </div>
-            <div class="grid md:grid-cols-3 gap-8">
-                <!-- Feature 1: Note Taking -->
-                <div class="feature-card p-8 rounded-xl shadow-xl transform hover:shadow-purple-500/30 transition-shadow duration-300">
-                    <div class="flex items-center justify-center mb-6">
-                        <svg class="w-12 h-12 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                    </div>
-                    <h3 class="text-xl font-semibold text-white mb-3 text-center">Capture Ideas Instantly</h3>
-                    <p class="text-gray-400 text-center">
-                        Seamlessly record notes, thoughts, and inspirations. Your digital scribe, always ready.
-                    </p>
-                </div>
-
-                <!-- Feature 2: AI Query -->
-                <div class="feature-card p-8 rounded-xl shadow-xl transform hover:shadow-purple-500/30 transition-shadow duration-300">
-                    <div class="flex items-center justify-center mb-6">
-                        <svg class="w-12 h-12 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.79 4 4s-1.79 4-4 4c-1.742 0-3.223-.835-3.772-2M12 12H21M3 12h2.025M12 3v2.025m0 13.95V21M6.343 6.343l1.414 1.414m9.9 9.9l1.414 1.414M3 21l2.025-2.025M21 3l-2.025 2.025"></path></svg>
-                    </div>
-                    <h3 class="text-xl font-semibold text-white mb-3 text-center">Intelligent Dialogue</h3>
-                    <p class="text-gray-400 text-center">
-                        Engage with cutting-edge AI. Ask questions, explore concepts, and augment your understanding.
-                    </p>
-                </div>
-
-                <!-- Feature 3: Secure Storage & Logging -->
-                <div class="feature-card p-8 rounded-xl shadow-xl transform hover:shadow-purple-500/30 transition-shadow duration-300">
-                    <div class="flex items-center justify-center mb-6">
-                        <svg class="w-12 h-12 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                    </div>
-                    <h3 class="text-xl font-semibold text-white mb-3 text-center">Secure & Private</h3>
-                    <p class="text-gray-400 text-center">
-                        Your data is yours. Stored securely, with comprehensive logging for your peace of mind.
-                    </p>
-                </div>
-            </div>
+        <nav>
+            <a href="{{ url_for('hello') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md font-medium {% if request.endpoint == 'hello' %}active{% endif %}">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                <span>Dashboard</span>
+            </a>
+            <a href="#" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md font-medium"> <!-- Link to future notes page -->
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                <span>Notes</span>
+            </a>
+            <a href="#" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md font-medium"> <!-- Link to future Gemini page -->
+                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.79 4 4s-1.79 4-4 4c-1.742 0-3.223-.835-3.772-2M12 12H21M3 12h2.025M12 3v2.025m0 13.95V21M6.343 6.343l1.414 1.414m9.9 9.9l1.414 1.414M3 21l2.025-2.025M21 3l-2.025 2.025"></path></svg>
+                <span>Gemini Query</span>
+            </a>
+            <a href="{{ url_for('view_activity_log') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md font-medium {% if request.endpoint == 'view_activity_log' %}active{% endif %}">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                <span>Activity Log</span>
+            </a>
+        </nav>
+        <div class="absolute bottom-0 left-0 w-full p-4">
+             <a href="{{ url_for('logout') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md font-medium w-full text-sm">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                <span>Logout</span>
+            </a>
         </div>
-    </section>
+    </aside>
 
-    <!-- Footer -->
-    <footer class="bg-slate-900 py-8 text-center">
-        <div class="container mx-auto px-6">
-            <p class="text-gray-500 text-sm">
-                &copy; <span id="currentYear"></span> Byzantium Project. All rights reserved.
-            </p>
-            <p class="text-xs text-gray-600 mt-1">
-                A personal knowledge management tool.
-            </p>
-        </div>
-    </footer>
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col md:ml-64">
+        <!-- Top Header (Optional, can be removed for more compact look) -->
+        <header class="header p-4 shadow-sm">
+            <div class="flex justify-between items-center">
+                <button id="sidebarToggle" class="md:hidden text-slate-600 hover:text-purple-700 focus:outline-none">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </button>
+                <h1 class="text-xl font-semibold text-slate-700">Dashboard</h1>
+                <div class="w-6"></div> <!-- Spacer for alignment with toggle button -->
+            </div>
+        </header>
+
+        <!-- Page Content -->
+        <main class="flex-1 p-6 md:p-8 overflow-y-auto">
+            <div class="content-card rounded-lg p-6 md:p-8">
+                <h2 class="text-2xl font-semibold text-slate-800 mb-6">Welcome to your Byzantium Dashboard</h2>
+                <p class="text-slate-600 mb-4">
+                    This is your personal space to manage notes, interact with AI, and track activity.
+                    Use the navigation on the left to explore different sections.
+                </p>
+                <p class="text-slate-600">
+                    Future content and functionalities will appear here. For now, you can view the
+                    <a href="{{ url_for('view_activity_log') }}" class="byzantine-purple-text hover:underline font-medium">Activity Log</a>
+                    to see recent interactions.
+                </p>
+            </div>
+
+            <!-- Example of more content cards for future use -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                <div class="content-card rounded-lg p-6">
+                    <h3 class="text-lg font-semibold text-slate-700 mb-3">Quick Actions</h3>
+                    <ul class="space-y-2">
+                        <li><a href="#" class="text-purple-600 hover:text-purple-800 hover:underline">Create New Note (Soon)</a></li>
+                        <li><a href="#" class="text-purple-600 hover:text-purple-800 hover:underline">New Gemini Query (Soon)</a></li>
+                    </ul>
+                </div>
+                <div class="content-card rounded-lg p-6">
+                    <h3 class="text-lg font-semibold text-slate-700 mb-3">Recent Activity (Summary)</h3>
+                    <p class="text-slate-500 text-sm">Summary of recent logs will go here.</p>
+                </div>
+            </div>
+        </main>
+    </div>
 
     <script>
-        document.getElementById('currentYear').textContent = new Date().getFullYear();
+        const sidebar = document.querySelector('aside');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('-translate-x-full');
+            });
+        }
     </script>
-
 </body>
 </html>

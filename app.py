@@ -1,7 +1,7 @@
 import os
 import psycopg2
-import json # For storing details in JSONB
-from psycopg2.extras import Json # For adapting Python dicts to JSONB
+import json
+from psycopg2.extras import Json
 from flask import Flask, request, session, redirect, url_for, render_template
 from functools import wraps
 
@@ -15,54 +15,45 @@ APP_PASSWORD = os.environ.get("APP_PASSWORD")
 if not APP_PASSWORD:
     raise ValueError("No APP_PASSWORD set for Flask application.")
 
-# --- Database Helper ---
 def get_db_connection():
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
         raise Exception("DATABASE_URL is not set")
     return psycopg2.connect(db_url)
 
-# --- Activity Logging Helper ---
 def log_activity(activity_type, details=None):
     conn = None
     try:
-        user_id = 1 if 'logged_in' in session else 0 # 1 for logged in, 0 for unauth/system
+        user_id = 1 if 'logged_in' in session else 0
         ip_address = request.remote_addr
         user_agent = request.headers.get('User-Agent')
         path = request.path
-
-        # Ensure details is None or a dict for JSONB
         if details is not None and not isinstance(details, dict):
-            details = {"info": str(details)} # Convert non-dict details to a simple dict
-
+            details = {"info": str(details)}
         sql = """
             INSERT INTO activity_log (user_id, activity_type, ip_address, user_agent, path, details)
             VALUES (%s, %s, %s, %s, %s, %s);
         """
         conn = get_db_connection()
         cur = conn.cursor()
-        # Use Json adapter for the details dictionary
         cur.execute(sql, (user_id, activity_type, ip_address, user_agent, path, Json(details) if details else None))
         conn.commit()
         cur.close()
     except Exception as e:
-        print(f"Error logging activity '{activity_type}': {e}") # Log to Render console
+        print(f"Error logging activity '{activity_type}': {e}")
     finally:
         if conn:
             conn.close()
 
-# --- Authentication Decorator ---
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'logged_in' not in session:
-            # Log unauthorized access attempt before redirecting
             log_activity('unauthorized_access_attempt', details={"target_url": request.url})
             return redirect(url_for('login', next=request.url))
         return f(*args, **kwargs)
     return decorated_function
 
-# --- Routes ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     error = None
@@ -71,32 +62,25 @@ def login():
         if submitted_password == APP_PASSWORD:
             session['logged_in'] = True
             session.permanent = True
-            log_activity('login_success') # Log successful login
+            log_activity('login_success')
             next_url = request.args.get('next')
             return redirect(next_url or url_for('hello'))
         else:
-            log_activity('login_failure', details={"reason": "Invalid password"}) # Log failed login
+            log_activity('login_failure', details={"reason": "Invalid password"})
             error = 'Invalid Password. Please try again.'
-    # Log pageview for GET request to login page
-    # (Done by before_request_handler if not explicitly excluded)
     return render_template('login.html', error=error)
 
 @app.route('/logout')
 def logout():
     if 'logged_in' in session:
-        log_activity('logout') # Log logout before popping session
+        log_activity('logout')
     session.pop('logged_in', None)
     return redirect(url_for('login'))
 
-# This function will run BEFORE every request
 @app.before_request
 def before_request_handler():
-    # Exclude static files and login route from automatic pageview logging here
-    # as login route handles its own pageview logging logic if needed,
-    # and static files don't typically need individual pageview logs.
-    # Unauthorized access attempts are logged by @login_required
     if request.endpoint and request.endpoint not in ['login', 'static', 'logout']:
-        if 'logged_in' in session: # Only log pageviews for authenticated users
+        if 'logged_in' in session:
              log_activity('pageview')
 
 @app.route('/')
@@ -107,6 +91,7 @@ def hello():
 @app.route('/db_test')
 @login_required
 def db_test():
+    # This route is just for testing, can be removed later
     conn = None
     try:
         conn = get_db_connection()
@@ -121,7 +106,6 @@ def db_test():
         if conn:
             conn.close()
 
-# --- Route to view activity logs (for your eyes only) ---
 @app.route('/admin/activity_log')
 @login_required
 def view_activity_log():
@@ -129,26 +113,54 @@ def view_activity_log():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        # Fetch last 100 activities, newest first
-        cur.execute("SELECT id, user_id, activity_type, ip_address, path, details, timestamp FROM activity_log ORDER BY timestamp DESC LIMIT 100")
-        activities = cur.fetchall()
+        cur.execute("SELECT id, user_id, activity_type, ip_address, path, details, TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS TZ') as formatted_timestamp FROM activity_log ORDER BY timestamp DESC LIMIT 100")
+        activities_raw = cur.fetchall()
+        # Get column names from cursor description
+        colnames = [desc[0] for desc in cur.description]
         cur.close()
-        # Basic HTML display for now
-        html_output = "<h1>Activity Log (Last 100)</h1><table border='1' style='width:100%; border-collapse: collapse; color: #D1D5DB;'>"
-        html_output += "<tr style='background-color: #374151;'><th>ID</th><th>User ID</th><th>Type</th><th>IP</th><th>Path</th><th>Details</th><th>Timestamp</th></tr>"
+
+        activities = []
+        for row in activities_raw:
+            activities.append(dict(zip(colnames, row)))
+        
+        # Simple HTML table for now, can be improved with a dedicated template
+        html_output = """
+        <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Activity Log</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style> body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #334155; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9em; }
+        th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; }
+        th { background-color: #e2e8f0; color: #4B0082; }
+        tr:nth-child(even) { background-color: #f1f5f9; }
+        a { color: #4B0082; text-decoration: none; } a:hover { text-decoration: underline; }
+        .details-json { max-width: 300px; overflow-x: auto; white-space: pre-wrap; background-color: #eef2ff; padding: 5px; border-radius: 4px; font-family: monospace; font-size: 0.8em;}
+        </style></head><body>
+        <h1 class="text-2xl font-semibold mb-4" style="color: #4B0082;">Activity Log <span style="color: #DAA520;">&dagger;</span> (Last 100)</h1>
+        <p><a href="{{ url_for('hello') }}">Back to Dashboard</a></p>
+        <table><thead><tr>
+        """
+        for name in colnames:
+            html_output += f"<th>{name.replace('_', ' ').title()}</th>"
+        html_output += "</tr></thead><tbody>"
+
         for activity in activities:
             html_output += "<tr>"
-            for item in activity:
-                html_output += f"<td style='padding: 5px; border: 1px solid #4B5563;'>{str(item)}</td>"
+            for col_name in colnames:
+                value = activity.get(col_name)
+                if col_name == 'details' and value is not None:
+                    # Pretty print JSON for details column
+                    html_output += f"<td><pre class='details-json'>{json.dumps(value, indent=2)}</pre></td>"
+                else:
+                    html_output += f"<td>{str(value) if value is not None else ''}</td>"
             html_output += "</tr>"
-        html_output += "</table>"
+        html_output += "</tbody></table></body></html>"
         return html_output
     except Exception as e:
+        log_activity('error', details={"function": "view_activity_log", "error": str(e)})
         return f"Error fetching activity log: {e}", 500
     finally:
         if conn:
             conn.close()
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)), debug=True)
