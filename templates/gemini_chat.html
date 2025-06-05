@@ -1,0 +1,117 @@
+{% extends "index.html" %}
+
+{% block content %}
+<div class="content-card rounded-lg p-4 md:p-6 h-full flex flex-col">
+    <h2 class="text-2xl font-semibold text-slate-800 mb-4">Oracle Chat: SAS & Programming Consultation</h2> <!-- UPDATED TITLE -->
+    <p class="text-sm text-slate-500 mb-4">Pose your questions on SAS, Python, SQL, or other programming topics to the Oracle. Your chat history is for this session only.</p>
+    
+    <!-- Chat Messages Area -->
+    <div id="chat-messages" class="flex-grow overflow-y-auto mb-4 p-4 border border-slate-200 rounded-md bg-slate-50/50 space-y-4">
+        <!-- Messages will be appended here by JavaScript -->
+        <div class="p-3 rounded-lg bg-purple-100 text-purple-800 max-w-xl self-start text-sm shadow">
+            <p class="font-semibold">The Oracle</p> <!-- UPDATED SENDER -->
+            <p>Greetings. How may I illuminate your path in SAS, Python, or SQL today?</p> <!-- UPDATED MESSAGE -->
+        </div>
+    </div>
+
+    <!-- Message Input Area -->
+    <form id="chat-form" class="mt-auto">
+        <div class="flex items-center">
+            <input type="text" id="user-message" placeholder="Consult the Oracle..." required <!-- UPDATED PLACEHOLDER -->
+                   class="form-input flex-grow p-3 text-sm rounded-l-md focus:ring-1 focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                   style="background-color: #f1f5f9; border-color: #cbd5e1; color: #334155;">
+            <button type="submit" id="send-button"
+                    class="btn-primary text-sm font-semibold px-6 py-3 rounded-r-md transition-colors duration-300 flex items-center justify-center"
+                    style="background-color: #4B0082; color: #ffffff;">
+                <span id="send-button-text">Send</span>
+                <svg id="loading-spinner" class="animate-spin h-5 w-5 text-white ml-2 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    const chatMessagesDiv = document.getElementById('chat-messages');
+    const chatForm = document.getElementById('chat-form');
+    const userMessageInput = document.getElementById('user-message');
+    const sendButton = document.getElementById('send-button');
+    const sendButtonText = document.getElementById('send-button-text');
+    const loadingSpinner = document.getElementById('loading-spinner');
+
+    let chatHistory = [
+        // System instruction for SAS expertise is handled on the backend now.
+    ];
+
+    function appendMessage(sender, messageText, isUser = false) {
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('p-3', 'rounded-lg', 'max-w-xl', 'text-sm', 'shadow', 'break-words');
+        
+        const senderP = document.createElement('p');
+        senderP.classList.add('font-semibold', 'mb-1');
+        senderP.textContent = sender;
+
+        const messageP = document.createElement('p');
+        messageP.textContent = messageText; 
+
+
+        if (isUser) {
+            messageDiv.classList.add('bg-blue-100', 'text-blue-800', 'self-end', 'ml-auto');
+        } else {
+            messageDiv.classList.add('bg-purple-100', 'text-purple-800', 'self-start'); // Oracle responses
+        }
+        
+        messageDiv.appendChild(senderP);
+        messageDiv.appendChild(messageP);
+        chatMessagesDiv.appendChild(messageDiv);
+        chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight; // Auto-scroll
+    }
+
+    chatForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const userText = userMessageInput.value.trim();
+        if (!userText) return;
+
+        appendMessage('You', userText, true);
+        chatHistory.push({ role: 'user', parts: [{ text: userText }] });
+        userMessageInput.value = '';
+        sendButton.disabled = true;
+        sendButtonText.classList.add('hidden');
+        loadingSpinner.classList.remove('hidden');
+
+
+        try {
+            const response = await fetch("{{ url_for('api_chat_with_gemini') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    message: userText, 
+                    history: chatHistory.slice(0, -1) 
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            appendMessage('The Oracle', data.reply); // UPDATED SENDER
+            chatHistory.push({ role: 'model', parts: [{ text: data.reply }] });
+
+        } catch (error) {
+            console.error('Error sending message:', error);
+            appendMessage('System', 'Error: Could not get a response. ' + error.message, false);
+        } finally {
+            sendButton.disabled = false;
+            sendButtonText.classList.remove('hidden');
+            loadingSpinner.classList.add('hidden');
+            userMessageInput.focus();
+        }
+    });
+</script>
+{% endblock %}
