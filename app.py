@@ -27,7 +27,7 @@ if GEMINI_API_KEY:
         # System instruction for the chat model
         SYSTEM_INSTRUCTION = "You are an expert SAS programmer. Please provide clear, concise, and accurate SAS code and explanations. You can also assist with Python and SQL. Format code blocks appropriately using markdown-style triple backticks."
         gemini_model_instance = genai.GenerativeModel(
-            model_name='gemini-1.5-pro-latest',
+            model_name='gemini-2.5-pro-preview-05-06',
             system_instruction=SYSTEM_INSTRUCTION
         )
         print("[INFO] Gemini API configured successfully.")
