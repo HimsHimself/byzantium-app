@@ -82,21 +82,34 @@
 </head>
 
 <div class="content-card rounded-lg p-4 md:p-6 h-full flex flex-col">
-    ```
+    <h2 class="text-2xl font-semibold text-slate-800 mb-4">Oracle Chat: SAS & Programming Consultation</h2>
+    <p class="text-sm text-slate-500 mb-4">Pose your questions on SAS, Python, SQL, or other programming topics to the Oracle. Your chat history is for this session only.</p>
+    
+    <div id="chat-messages" class="flex-grow overflow-y-auto mb-4 p-4 border border-slate-200 rounded-md bg-slate-50/50 space-y-4">
+        <div class="p-3 rounded-lg bg-purple-100 text-purple-800 max-w-xl self-start text-sm shadow">
+            <p class="font-semibold">The Oracle</p>
+            <p>Greetings. How may I illuminate your path in SAS, Python, or SQL today?</p>
+        </div>
+    </div>
 
-## Step 2: Update the JavaScript Logic
+    <form id="chat-form" class="mt-auto">
+        <div class="flex items-center">
+            <input type="text" id="user-message" placeholder="Consult the Oracle..." required
+                   class="form-input flex-grow p-3 text-sm rounded-l-md focus:ring-1 focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                   style="background-color: #f1f5f9; border-color: #cbd5e1; color: #334155;">
+            <button type="submit" id="send-button"
+                    class="btn-primary text-sm font-semibold px-6 py-3 rounded-r-md transition-colors duration-300 flex items-center justify-center"
+                    style="background-color: #4B0082; color: #ffffff;">
+                <span id="send-button-text">Send</span>
+                <svg id="loading-spinner" class="animate-spin h-5 w-5 text-white ml-2 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+            </button>
+        </div>
+    </form>
+</div>
 
-In your existing `<script>` tag at the bottom of `oracle_chat.html`, make the following changes:
-
-1.  **Initialize Showdown converter:**
-2.  **Modify `appendMessage` function:**
-    * For messages from "The Oracle", convert `messageText` from Markdown to HTML using Showdown.
-    * Set `messageP.innerHTML` instead of `messageP.textContent` for these messages.
-    * After appending the message, find all `<pre><code>` blocks within it and apply `hljs.highlightElement()`.
-
-Here's the updated JavaScript section:
-
-```javascript
 <script>
     const chatMessagesDiv = document.getElementById('chat-messages');
     const chatForm = document.getElementById('chat-form');
@@ -168,14 +181,14 @@ Here's the updated JavaScript section:
         loadingSpinner.classList.remove('hidden');
 
         try {
-            const response = await fetch("{{ url_for('api_oracle_chat_query') }}", {
+            const response = await fetch("{{ url_for('api_oracle_chat_query') }}", { //
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ 
                     message: userText, 
-                    history: historyForApi
+                    history: historyForApi // Send history *before* current user message
                 })
             });
 
@@ -191,11 +204,11 @@ Here's the updated JavaScript section:
 
             const data = await response.json();
             appendMessage('The Oracle', data.reply); // This will now be rendered as Markdown
-            chatHistory.push({ role: 'model', parts: [{ text: data.reply }] });
+            chatHistory.push({ role: 'model', parts: [{ text: data.reply }] }); // Add LLM response to local history
 
         } catch (error) {
             console.error('Error sending message:', error);
-            // Use the same styling for system error messages as Oracle messages for consistency, but don't process markdown
+            // Display system error messages
             const errorText = 'Error: Could not get a response. ' + error.message;
             
             const messageDiv = document.createElement('div');
@@ -212,7 +225,10 @@ Here's the updated JavaScript section:
         }
     });
 
-    // Ensure highlight.js is initialized after the page loads if you load specific languages and it doesn't auto-init
-    // hljs.highlightAll(); // Or call highlightElement on dynamic content as done in appendMessage
+    // If you've loaded specific languages for highlight.js and it doesn't auto-initialize,
+    // you might need this, but usually, highlightElement is sufficient for dynamic content.
+    // document.addEventListener('DOMContentLoaded', (event) => {
+    //   hljs.highlightAll();
+    // });
 </script>
 {% endblock %}
