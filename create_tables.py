@@ -44,7 +44,7 @@ try:
         id SERIAL PRIMARY KEY,
         title VARCHAR(255) NOT NULL,
         content TEXT,
-        folder_id INTEGER, -- Nullable if notes can exist outside folders, or point to a default root
+        folder_id INTEGER,
         user_id INTEGER NOT NULL DEFAULT 1, -- Assuming user_id 1
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -53,11 +53,6 @@ try:
     """
     cur.execute(create_notes_script)
     print("Table 'notes' created successfully.")
-
-    # Trigger function to update 'updated_at' columns automatically
-    # This is a common pattern but specific syntax can vary slightly by PostgreSQL version
-    # and might be better handled by ORMs or application logic if preferred.
-    # For simplicity, we can manage updated_at from the app for now.
 
     conn.commit()
     cur.close()
