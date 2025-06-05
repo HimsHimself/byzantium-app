@@ -2,22 +2,21 @@
 
 {% block content %}
 <div class="content-card rounded-lg p-4 md:p-6 h-full flex flex-col">
-    <h2 class="text-2xl font-semibold text-slate-800 mb-4">Oracle Chat: SAS & Programming Consultation</h2> <!-- UPDATED TITLE -->
+    <h2 class="text-2xl font-semibold text-slate-800 mb-4">Oracle Chat: SAS & Programming Consultation</h2>
     <p class="text-sm text-slate-500 mb-4">Pose your questions on SAS, Python, SQL, or other programming topics to the Oracle. Your chat history is for this session only.</p>
     
     <!-- Chat Messages Area -->
     <div id="chat-messages" class="flex-grow overflow-y-auto mb-4 p-4 border border-slate-200 rounded-md bg-slate-50/50 space-y-4">
-        <!-- Messages will be appended here by JavaScript -->
         <div class="p-3 rounded-lg bg-purple-100 text-purple-800 max-w-xl self-start text-sm shadow">
-            <p class="font-semibold">The Oracle</p> <!-- UPDATED SENDER -->
-            <p>Greetings. How may I illuminate your path in SAS, Python, or SQL today?</p> <!-- UPDATED MESSAGE -->
+            <p class="font-semibold">The Oracle</p>
+            <p>Greetings. How may I illuminate your path in SAS, Python, or SQL today?</p>
         </div>
     </div>
 
     <!-- Message Input Area -->
     <form id="chat-form" class="mt-auto">
         <div class="flex items-center">
-            <input type="text" id="user-message" placeholder="Consult the Oracle..." required <!-- UPDATED PLACEHOLDER -->
+            <input type="text" id="user-message" placeholder="Consult the Oracle..." required
                    class="form-input flex-grow p-3 text-sm rounded-l-md focus:ring-1 focus:outline-none focus:ring-purple-500 focus:border-purple-500"
                    style="background-color: #f1f5f9; border-color: #cbd5e1; color: #334155;">
             <button type="submit" id="send-button"
@@ -41,9 +40,7 @@
     const sendButtonText = document.getElementById('send-button-text');
     const loadingSpinner = document.getElementById('loading-spinner');
 
-    let chatHistory = [
-        // System instruction for SAS expertise is handled on the backend now.
-    ];
+    let chatHistory = []; // Session-only history
 
     function appendMessage(sender, messageText, isUser = false) {
         const messageDiv = document.createElement('div');
@@ -54,8 +51,9 @@
         senderP.textContent = sender;
 
         const messageP = document.createElement('p');
+        // Basic text display for now. For Markdown, implement conversion here.
+        messageP.style.whiteSpace = 'pre-wrap'; // To respect newlines from LLM
         messageP.textContent = messageText; 
-
 
         if (isUser) {
             messageDiv.classList.add('bg-blue-100', 'text-blue-800', 'self-end', 'ml-auto');
@@ -66,7 +64,7 @@
         messageDiv.appendChild(senderP);
         messageDiv.appendChild(messageP);
         chatMessagesDiv.appendChild(messageDiv);
-        chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight; // Auto-scroll
+        chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
     }
 
     chatForm.addEventListener('submit', async function(event) {
@@ -75,42 +73,46 @@
         if (!userText) return;
 
         appendMessage('You', userText, true);
-        chatHistory.push({ role: 'user', parts: [{ text: userText }] });
+        // The history sent to backend should be the state *before* this new user message
+        const historyForApi = [...chatHistory]; 
+        chatHistory.push({ role: 'user', parts: [{ text: userText }] }); // Add new user message to local history
         userMessageInput.value = '';
+        
         sendButton.disabled = true;
         sendButtonText.classList.add('hidden');
         loadingSpinner.classList.remove('hidden');
 
-
         try {
-            const response = await fetch("{{ url_for('api_chat_with_gemini') }}", {
+            const response = await fetch("{{ url_for('api_oracle_chat_query') }}", { // Ensure this matches app.py
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ 
                     message: userText, 
-                    history: chatHistory.slice(0, -1) 
+                    history: historyForApi // Send history *before* current user message
                 })
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            appendMessage('The Oracle', data.reply); // UPDATED SENDER
-            chatHistory.push({ role: 'model', parts: [{ text: data.reply }] });
-
-        } catch (error) {
-            console.error('Error sending message:', error);
-            appendMessage('System', 'Error: Could not get a response. ' + error.message, false);
-        } finally {
             sendButton.disabled = false;
             sendButtonText.classList.remove('hidden');
             loadingSpinner.classList.add('hidden');
             userMessageInput.focus();
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({error: "Failed to parse error response."}));
+                throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            appendMessage('The Oracle', data.reply);
+            chatHistory.push({ role: 'model', parts: [{ text: data.reply }] }); // Add LLM response to local history
+
+        } catch (error) {
+            console.error('Error sending message:', error);
+            appendMessage('System', 'Error: Could not get a response. ' + error.message, false);
+            // Decide if you want to remove the user's last message from chatHistory on error
+            // chatHistory.pop(); 
         }
     });
 </script>
