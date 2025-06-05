@@ -33,7 +33,7 @@ try:
         user_id INTEGER NOT NULL DEFAULT 1, -- Assuming user_id 1 for the primary user
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW(),
-        FOREIGN KEY (parent_folder_id) REFERENCES folders (id) ON DELETE CASCADE
+        FOREIGN KEY (parent_folder_id) REFERENCES folders (id) ON DELETE CASCADE -- Subfolders deleted with parent
     );
     """
     cur.execute(create_folders_script)
@@ -48,7 +48,7 @@ try:
         user_id INTEGER NOT NULL DEFAULT 1, -- Assuming user_id 1
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW(),
-        FOREIGN KEY (folder_id) REFERENCES folders (id) ON DELETE SET NULL -- Or ON DELETE CASCADE
+        FOREIGN KEY (folder_id) REFERENCES folders (id) ON DELETE CASCADE -- Notes deleted with folder
     );
     """
     cur.execute(create_notes_script)
