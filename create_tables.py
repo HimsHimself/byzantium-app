@@ -1,32 +1,15 @@
 import os
 import psycopg2
-import json # For the details column if needed, though not directly used in CREATE
+import json # Not directly used for table creation but good to keep if details are complex
 
-# Get the database URL from the environment variable
 db_url = os.environ.get("DATABASE_URL")
-
 if not db_url:
     raise Exception("DATABASE_URL environment variable is not set.")
-
 conn = None
 try:
-    # Connect to the database
     conn = psycopg2.connect(db_url)
     cur = conn.cursor()
 
-    # SQL command to create the visitors table (can be removed if fully deprecated)
-    create_visitors_script = """
-    CREATE TABLE IF NOT EXISTS visitors (
-        id SERIAL PRIMARY KEY,
-        ip_address VARCHAR(45),
-        user_agent TEXT,
-        timestamp TIMESTAMPTZ DEFAULT NOW()
-    );
-    """
-    cur.execute(create_visitors_script)
-    print("Table 'visitors' checked/created successfully.")
-
-    # SQL command to create the centralized activity_log table
     create_activity_log_script = """
     CREATE TABLE IF NOT EXISTS activity_log (
         id SERIAL PRIMARY KEY,
@@ -40,18 +23,47 @@ try:
     );
     """
     cur.execute(create_activity_log_script)
-    print("Table 'activity_log' created successfully.")
+    print("Table 'activity_log' checked/created successfully.")
 
-    # Commit the changes to the database
+    create_folders_script = """
+    CREATE TABLE IF NOT EXISTS folders (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        parent_folder_id INTEGER, -- Nullable for root folders
+        user_id INTEGER NOT NULL DEFAULT 1, -- Assuming user_id 1 for the primary user
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        FOREIGN KEY (parent_folder_id) REFERENCES folders (id) ON DELETE CASCADE
+    );
+    """
+    cur.execute(create_folders_script)
+    print("Table 'folders' created successfully.")
+
+    create_notes_script = """
+    CREATE TABLE IF NOT EXISTS notes (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        content TEXT,
+        folder_id INTEGER, -- Nullable if notes can exist outside folders, or point to a default root
+        user_id INTEGER NOT NULL DEFAULT 1, -- Assuming user_id 1
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        FOREIGN KEY (folder_id) REFERENCES folders (id) ON DELETE SET NULL -- Or ON DELETE CASCADE
+    );
+    """
+    cur.execute(create_notes_script)
+    print("Table 'notes' created successfully.")
+
+    # Trigger function to update 'updated_at' columns automatically
+    # This is a common pattern but specific syntax can vary slightly by PostgreSQL version
+    # and might be better handled by ORMs or application logic if preferred.
+    # For simplicity, we can manage updated_at from the app for now.
+
     conn.commit()
-
-    # Close the cursor
     cur.close()
-
+    print("Database schema setup complete.")
 except Exception as e:
     print(f"An error occurred: {e}")
-
 finally:
-    # Make sure to close the connection
     if conn:
         conn.close()

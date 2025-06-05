@@ -1,0 +1,41 @@
+{% extends "index.html" %} <!-- This will inherit the sidebar and overall layout -->
+
+{% block content %}
+<div class="content-card rounded-lg p-6 md:p-8">
+    <h2 class="text-2xl font-semibold text-slate-800 mb-6">Notes Management</h2>
+    <p class="text-slate-600 mb-4">
+        This is where your notes and folder structure will appear. Functionality to create, view, edit, and delete notes and folders will be implemented here.
+    </p>
+    
+    <!-- Placeholder for folder structure -->
+    <div class="mb-6 p-4 border border-slate-200 rounded-md bg-slate-50">
+        <h3 class="text-lg font-medium text-slate-700 mb-2">Folders</h3>
+        <p class="text-sm text-slate-500 italic">(Hierarchical folder tree will go here)</p>
+        <ul class="mt-2 space-y-1">
+            <li class="p-2 hover:bg-slate-100 rounded-md cursor-pointer">Root Folder 1</li>
+            <li class="ml-4 p-2 hover:bg-slate-100 rounded-md cursor-pointer">Subfolder 1.1</li>
+            <li class="p-2 hover:bg-slate-100 rounded-md cursor-pointer">Root Folder 2</li>
+        </ul>
+        <button class="mt-3 text-sm byzantine-purple-text hover:underline">+ New Folder</button>
+    </div>
+
+    <!-- Placeholder for notes list within a selected folder -->
+    <div class="mb-6 p-4 border border-slate-200 rounded-md bg-slate-50">
+        <h3 class="text-lg font-medium text-slate-700 mb-2">Notes in Selected Folder</h3>
+        <p class="text-sm text-slate-500 italic">(List of notes will go here)</p>
+         <ul class="mt-2 space-y-1">
+            <li class="p-2 hover:bg-slate-100 rounded-md cursor-pointer">My First Note Title</li>
+            <li class="p-2 hover:bg-slate-100 rounded-md cursor-pointer">Research on Byzantine Art</li>
+        </ul>
+        <button class="mt-3 text-sm byzantine-purple-text hover:underline">+ New Note</button>
+    </div>
+
+    <!-- Placeholder for displaying/editing a selected note -->
+    <div class="p-4 border border-slate-200 rounded-md bg-slate-50">
+        <h3 class="text-lg font-medium text-slate-700 mb-2">Selected Note Content</h3>
+        <p class="text-sm text-slate-500 italic">(Content of the selected note will be displayed here for viewing/editing)</p>
+        <textarea class="w-full h-40 p-2 border border-slate-300 rounded-md mt-2 bg-white" placeholder="Note content..."></textarea>
+         <button class="mt-3 text-sm byzantine-purple-text hover:underline">Save Note</button>
+    </div>
+</div>
+{% endblock %}
