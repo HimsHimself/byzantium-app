@@ -52,6 +52,7 @@
                                 </a>
                                 <!-- Delete Folder Form - shows on hover -->
                                 <form method="POST" action="{{ url_for('delete_folder', folder_id=folder.id) }}" class="ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <input type="hidden" name="redirect_folder_id" value="{{ current_folder.id if current_folder else '' }}">
                                     <button type="submit" onclick="return confirm('Are you sure you want to delete folder \'{{ folder.name }}\' and all its contents (subfolders and notes)?');"
                                             class="text-red-400 hover:text-red-600 p-1 rounded-full hover:bg-red-100">
                                         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
@@ -81,10 +82,11 @@
             
             {% if current_folder %}
             <div class="p-4 border border-slate-200 rounded-md bg-slate-50/50 shadow-sm">
-                <h3 class="text-lg font-medium text-slate-700 mb-3">Rename Folder</h3>
-                 <form method="POST" action="{{ url_for('rename_folder', folder_id=current_folder.id) }}">
+                <h3 class="text-lg font-medium text-slate-700 mb-3">Manage Current Folder</h3>
+                 <form method="POST" action="{{ url_for('rename_folder', folder_id=current_folder.id) }}" class="mb-3">
+                    <label for="new_folder_name_{{current_folder.id}}" class="text-xs text-slate-500 block mb-1">Rename '{{current_folder.name}}'</label>
                     <div class="flex">
-                        <input type="text" name="new_folder_name" value="{{ current_folder.name }}" required
+                        <input type="text" id="new_folder_name_{{current_folder.id}}" name="new_folder_name" value="{{ current_folder.name }}" required
                                class="form-input flex-grow p-2 text-sm rounded-l-md focus:ring-1 focus:outline-none"
                                style="background-color: #f1f5f9; border-color: #cbd5e1; color: #334155;">
                         <button type="submit"
@@ -94,6 +96,13 @@
                         </button>
                     </div>
                 </form>
+                <form method="POST" action="{{ url_for('delete_folder', folder_id=current_folder.id) }}">
+                    <input type="hidden" name="redirect_folder_id" value="{{ current_folder.parent_folder_id if current_folder.parent_folder_id else '' }}">
+                     <button type="submit" onclick="return confirm('Are you sure you want to delete folder \'{{ current_folder.name }}\' and all its contents?');"
+                             class="w-full text-red-500 hover:text-red-700 text-xs font-medium px-3 py-2 rounded-md hover:bg-red-100 border border-red-300 hover:border-red-400">
+                         Delete '{{ current_folder.name }}'
+                     </button>
+                 </form>
             </div>
             {% endif %}
         </div>
@@ -116,6 +125,7 @@
                                 </a>
                                 <!-- Delete Note Form - directly on list item for quick action -->
                                 <form method="POST" action="{{ url_for('delete_note', note_id=note.id) }}" class="ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <input type="hidden" name="redirect_folder_id" value="{{ current_folder.id if current_folder else '' }}">
                                     <button type="submit" onclick="return confirm('Are you sure you want to delete note \'{{ note.title }}\'?');"
                                             class="text-red-400 hover:text-red-600 p-1 rounded-full hover:bg-red-100">
                                         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
@@ -150,8 +160,9 @@
             {% if current_note %}
             <div class="p-4 border border-slate-200 rounded-md bg-white shadow-sm">
                 <form method="POST" action="{{ url_for('rename_note', note_id=current_note.id) }}" class="mb-4">
+                    <label for="new_note_title_{{current_note.id}}" class="text-xs text-slate-500 block mb-1">Rename Note</label>
                     <div class="flex items-center">
-                         <input type="text" name="new_note_title" value="{{ current_note.title }}" required
+                         <input type="text" id="new_note_title_{{current_note.id}}" name="new_note_title" value="{{ current_note.title }}" required
                                class="form-input flex-grow p-2 text-lg font-medium rounded-l-md focus:ring-1 focus:outline-none text-slate-700"
                                style="background-color: #f1f5f9; border-color: #cbd5e1;">
                         <button type="submit"
@@ -166,14 +177,15 @@
                               class="w-full p-3 border border-slate-300 rounded-md bg-white focus:ring-1 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm"
                               style="color: #334155; background-color: #f8fafc;">{{ current_note.content if current_note.content is not none else '' }}</textarea>
                     <div class="mt-4 flex justify-between items-center">
-                        <form method="POST" action="{{ url_for('delete_note', note_id=current_note.id) }}" class="inline">
+                         <form method="POST" action="{{ url_for('delete_note', note_id=current_note.id) }}" class="inline">
+                            <input type="hidden" name="redirect_folder_id" value="{{ current_note.folder_id if current_note.folder_id else '' }}">
                              <button type="submit" onclick="return confirm('Are you sure you want to delete this note?');"
                                      class="text-red-500 hover:text-red-700 text-xs font-medium px-3 py-1 rounded-md hover:bg-red-50">
                                  Delete This Note
                              </button>
                          </form>
                         <div>
-                            <a href="{{ url_for('notes_page', folder_id=current_note.folder_id) }}" class="text-slate-600 hover:text-slate-800 px-4 py-2 rounded-md text-sm">Cancel</a>
+                            <a href="{{ url_for('notes_page', folder_id=current_note.folder_id if current_note.folder_id else None) }}" class="text-slate-600 hover:text-slate-800 px-4 py-2 rounded-md text-sm">Cancel</a>
                             <button type="submit"
                                     class="btn-primary text-sm font-semibold px-4 py-2 rounded-md transition-colors duration-300"
                                     style="background-color: #4B0082; color: #ffffff;">
@@ -192,3 +204,4 @@
     </div>
 </div>
 {% endblock %}
+
