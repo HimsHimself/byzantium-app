@@ -79,19 +79,31 @@ def logout():
 
 @app.before_request
 def before_request_handler():
+    # Exclude static files, login, and logout from automatic pageview logging here.
+    # Pageview for protected routes is implicitly handled by those routes being accessed.
+    # Unauthorized access attempts are logged by @login_required.
+    # Pageviews for login (GET) can be logged in the login route itself if desired.
     if request.endpoint and request.endpoint not in ['login', 'static', 'logout']:
-        if 'logged_in' in session:
+        if 'logged_in' in session: # Only log pageviews for authenticated users on protected content
              log_activity('pageview')
+
 
 @app.route('/')
 @login_required
 def hello():
     return render_template('index.html')
 
+@app.route('/notes') # NEW ROUTE
+@login_required
+def notes_page():
+    # In the future, this route will fetch folders and notes data
+    # For now, it just renders the placeholder template
+    return render_template('notes.html')
+
+
 @app.route('/db_test')
 @login_required
 def db_test():
-    # This route is just for testing, can be removed later
     conn = None
     try:
         conn = get_db_connection()
@@ -122,9 +134,7 @@ def view_activity_log():
         for row in activities_raw:
             activities.append(dict(zip(colnames, row)))
         
-        # Generate the correct URL for the 'Back to Dashboard' link
         dashboard_url = url_for('hello')
-
         html_output = f"""
         <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Activity Log</title>
         <script src="https://cdn.tailwindcss.com"></script>
