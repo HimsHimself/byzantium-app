@@ -115,7 +115,6 @@ def view_activity_log():
         cur = conn.cursor()
         cur.execute("SELECT id, user_id, activity_type, ip_address, path, details, TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS TZ') as formatted_timestamp FROM activity_log ORDER BY timestamp DESC LIMIT 100")
         activities_raw = cur.fetchall()
-        # Get column names from cursor description
         colnames = [desc[0] for desc in cur.description]
         cur.close()
 
@@ -123,20 +122,22 @@ def view_activity_log():
         for row in activities_raw:
             activities.append(dict(zip(colnames, row)))
         
-        # Simple HTML table for now, can be improved with a dedicated template
-        html_output = """
+        # Generate the correct URL for the 'Back to Dashboard' link
+        dashboard_url = url_for('hello')
+
+        html_output = f"""
         <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Activity Log</title>
         <script src="https://cdn.tailwindcss.com"></script>
-        <style> body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #334155; padding: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9em; }
-        th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; }
-        th { background-color: #e2e8f0; color: #4B0082; }
-        tr:nth-child(even) { background-color: #f1f5f9; }
-        a { color: #4B0082; text-decoration: none; } a:hover { text-decoration: underline; }
-        .details-json { max-width: 300px; overflow-x: auto; white-space: pre-wrap; background-color: #eef2ff; padding: 5px; border-radius: 4px; font-family: monospace; font-size: 0.8em;}
+        <style> body {{ font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #334155; padding: 20px; }}
+        table {{ width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9em; }}
+        th, td {{ border: 1px solid #cbd5e1; padding: 10px; text-align: left; }}
+        th {{ background-color: #e2e8f0; color: #4B0082; }}
+        tr:nth-child(even) {{ background-color: #f1f5f9; }}
+        a {{ color: #4B0082; text-decoration: none; }} a:hover {{ text-decoration: underline; }}
+        .details-json {{ max-width: 300px; overflow-x: auto; white-space: pre-wrap; background-color: #eef2ff; padding: 5px; border-radius: 4px; font-family: monospace; font-size: 0.8em;}}
         </style></head><body>
         <h1 class="text-2xl font-semibold mb-4" style="color: #4B0082;">Activity Log <span style="color: #DAA520;">&dagger;</span> (Last 100)</h1>
-        <p><a href="{{ url_for('hello') }}">Back to Dashboard</a></p>
+        <p><a href="{dashboard_url}">Back to Dashboard</a></p>
         <table><thead><tr>
         """
         for name in colnames:
@@ -148,7 +149,6 @@ def view_activity_log():
             for col_name in colnames:
                 value = activity.get(col_name)
                 if col_name == 'details' and value is not None:
-                    # Pretty print JSON for details column
                     html_output += f"<td><pre class='details-json'>{json.dumps(value, indent=2)}</pre></td>"
                 else:
                     html_output += f"<td>{str(value) if value is not None else ''}</td>"
