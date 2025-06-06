@@ -1,12 +1,13 @@
 import os
 import psycopg2
 import json
+import requests # For making HTTP requests to the Cloud Function
 from psycopg2.extras import Json, RealDictCursor
 from flask import Flask, request, session, redirect, url_for, render_template, flash, jsonify
 from functools import wraps
 from datetime import datetime
-import traceback 
-import google.generativeai as genai # Import Gemini library
+import traceback
+# import google.generativeai as genai # No longer needed directly here
 
 app = Flask(__name__)
 
@@ -18,25 +19,14 @@ APP_PASSWORD = os.environ.get("APP_PASSWORD")
 if not APP_PASSWORD:
     raise ValueError("No APP_PASSWORD set for Flask application.")
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-gemini_model_instance = None # Global variable for the initialized model
+# Environment variables for the external Oracle API (Google Cloud Function)
+ORACLE_API_ENDPOINT_URL = os.environ.get("ORACLE_API_ENDPOINT_URL")
+ORACLE_API_FUNCTION_KEY = os.environ.get("ORACLE_API_FUNCTION_KEY") # Optional: Key for your Cloud Function
 
-if GEMINI_API_KEY:
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        # System instruction for the chat model
-        SYSTEM_INSTRUCTION = "You are an expert SAS programmer. Please provide clear, concise, and accurate SAS code and explanations. You can also assist with Python and SQL. Format code blocks appropriately using markdown-style triple backticks."
-        gemini_model_instance = genai.GenerativeModel(
-            model_name='gemini-2.5-pro-preview-05-06',
-            system_instruction=SYSTEM_INSTRUCTION
-        )
-        print("[INFO] Gemini API configured successfully.")
-    except Exception as e:
-        print(f"[ERROR] Failed to configure Gemini API or initialize model: {e}")
-        GEMINI_API_KEY = None # Indicate Gemini is not available
-        gemini_model_instance = None
-else:
-    print("[WARNING] GEMINI_API_KEY not set. Oracle Chat functionality will be disabled.")
+if not ORACLE_API_ENDPOINT_URL:
+    print("[WARNING] ORACLE_API_ENDPOINT_URL not set. Oracle Chat functionality will be significantly impaired or disabled.")
+# else:
+    # print(f"[INFO] Oracle API Endpoint URL: {ORACLE_API_ENDPOINT_URL}")
 
 
 # --- Database Helper ---
@@ -49,7 +39,7 @@ def get_db_connection():
 # --- Activity Logging Helper ---
 def log_activity(activity_type, details=None):
     conn = None
-    cur = None 
+    cur = None
     try:
         user_id = 1 if 'logged_in' in session else 0
         ip_address = request.remote_addr if request else 'N/A'
@@ -58,7 +48,7 @@ def log_activity(activity_type, details=None):
 
         if details is not None and not isinstance(details, dict):
             details = {"info": str(details)}
-        
+
         sql = """
             INSERT INTO activity_log (user_id, activity_type, ip_address, user_agent, path, details)
             VALUES (%s, %s, %s, %s, %s, %s);
@@ -125,7 +115,8 @@ def before_request_handler():
 def hello():
     return render_template('index.html')
 
-# --- Notes and Folders Routes (condensed for focus, assume full code from previous state) ---
+# --- Notes and Folders Routes ---
+# (These routes remain unchanged from the previous version, full code omitted for brevity but assumed present)
 @app.route('/notes/')
 @app.route('/notes/folder/<int:folder_id>')
 @login_required
@@ -136,7 +127,7 @@ def notes_page(folder_id=None):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         current_folder = None
-        folders_to_display = [] 
+        folders_to_display = []
         notes_in_current_folder = []
         if folder_id:
             cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
@@ -151,7 +142,7 @@ def notes_page(folder_id=None):
         else:
             cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
             folders_to_display = cur.fetchall()
-        return render_template('notes.html', folders=folders_to_display, notes_in_folder=notes_in_current_folder, current_folder=current_folder, current_note=None) 
+        return render_template('notes.html', folders=folders_to_display, notes_in_folder=notes_in_current_folder, current_folder=current_folder, current_note=None)
     except Exception as e:
         traceback.print_exc()
         flash("Error loading notes.", "error")
@@ -161,8 +152,6 @@ def notes_page(folder_id=None):
             if cur: cur.close()
             conn.close()
 
-# ... Add Folder, Rename Folder, Delete Folder, Add Note ...
-# (Full CRUD for folders and notes as per previous correct version - OMITTED FOR BREVITY HERE but present in the full app.py)
 @app.route('/add_folder', methods=['POST'])
 @login_required
 def add_folder():
@@ -187,7 +176,7 @@ def add_folder():
             log_activity('folder_create_error', details={'folder_name': folder_name, 'error': str(e)})
             flash(f"Error: {e}", 'error'); print(f"Error: {e}"); conn.rollback() if conn else None
         finally:
-            if cur: cur.close(); 
+            if cur: cur.close();
             if conn: conn.close()
     return redirect(redirect_url)
 
@@ -280,30 +269,30 @@ def view_note(note_id):
         cur.execute("SELECT * FROM notes WHERE id = %s AND user_id = 1", (note_id,))
         current_note = cur.fetchone()
         if not current_note: flash('Note not found.', 'error'); return redirect(url_for('notes_page'))
-        
+
         folder_id_for_sidebar_list = current_note['folder_id']
-        current_folder_context = None 
+        current_folder_context = None
         folders_to_display_in_sidebar = []
-        if folder_id_for_sidebar_list: 
+        if folder_id_for_sidebar_list:
             cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id_for_sidebar_list,))
-            current_folder_context = cur.fetchone() 
+            current_folder_context = cur.fetchone()
             parent_of_current_folder_id = current_folder_context['parent_folder_id'] if current_folder_context else None
             if parent_of_current_folder_id:
                  cur.execute("SELECT * FROM folders WHERE parent_folder_id = %s AND user_id = 1 ORDER BY name", (parent_of_current_folder_id,))
-            else: 
+            else:
                  cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
             folders_to_display_in_sidebar = cur.fetchall()
-        else: 
+        else:
             cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
             folders_to_display_in_sidebar = cur.fetchall()
-        
-        notes_in_same_folder = [] 
+
+        notes_in_same_folder = []
         if current_note['folder_id']:
             cur.execute("SELECT id, title, updated_at FROM notes WHERE folder_id = %s AND user_id = 1 AND id != %s ORDER BY updated_at DESC", (current_note['folder_id'], note_id))
-        else: 
+        else:
             cur.execute("SELECT id, title, updated_at FROM notes WHERE folder_id IS NULL AND user_id = 1 AND id != %s ORDER BY updated_at DESC", (note_id,))
         notes_in_same_folder = cur.fetchall()
-        
+
         log_activity('view_note_details', details={'note_id': note_id, 'note_title': current_note['title']})
         return render_template('notes.html', folders=folders_to_display_in_sidebar, current_folder=current_folder_context, notes_in_folder=notes_in_same_folder, current_note=current_note)
     except Exception as e:
@@ -317,7 +306,7 @@ def view_note(note_id):
 @login_required
 def rename_note(note_id):
     new_note_title = request.form.get('new_note_title','').strip()
-    redirect_url = url_for('view_note', note_id=note_id) 
+    redirect_url = url_for('view_note', note_id=note_id)
     if not new_note_title: flash("Note title cannot be empty.", "error")
     else:
         conn = None; cur = None
@@ -341,7 +330,7 @@ def rename_note(note_id):
 @app.route('/note/<int:note_id>/update', methods=['POST'])
 @login_required
 def update_note(note_id):
-    new_content = request.form.get('note_content', '') 
+    new_content = request.form.get('note_content', '')
     redirect_url = url_for('view_note', note_id=note_id)
     conn = None; cur = None
     try:
@@ -373,7 +362,7 @@ def delete_note(note_id):
         cur.execute("SELECT title, folder_id FROM notes WHERE id = %s AND user_id = 1", (note_id,))
         note_data = cur.fetchone()
         if not note_data: flash("Note not found.", "error"); return redirect(url_for('notes_page'))
-        folder_note_was_in = note_data['folder_id'] 
+        folder_note_was_in = note_data['folder_id']
         cur.execute("DELETE FROM notes WHERE id = %s AND user_id = 1", (note_id,))
         conn.commit()
         log_activity('note_deleted', details={'note_id': note_id, 'note_title': note_data['title']})
@@ -387,55 +376,87 @@ def delete_note(note_id):
     if folder_note_was_in: return redirect(url_for('notes_page', folder_id=folder_note_was_in))
     return redirect(url_for('notes_page'))
 
-# --- Oracle Chat (Gemini) Routes ---
+# --- Oracle Chat (Gemini) Routes - Updated to call external API ---
 @app.route('/oracle_chat')
 @login_required
 def oracle_chat_page():
     log_activity('view_oracle_chat_page')
-    if not GEMINI_API_KEY or not gemini_model_instance: # Check if Gemini is available
-        flash("Oracle Chat is currently unavailable (API key or model not configured). Please check server logs.", "error")
+    if not ORACLE_API_ENDPOINT_URL:
+        flash("Oracle Chat is currently unavailable (API endpoint not configured). Please check server logs.", "error")
     return render_template('oracle_chat.html')
 
 @app.route('/api/oracle_chat_query', methods=['POST'])
 @login_required
 def api_oracle_chat_query():
-    global gemini_model_instance # Access the global model instance
-    if not GEMINI_API_KEY or not gemini_model_instance:
-        log_activity('gemini_api_error', details={'error': 'GEMINI_API_KEY not configured or model init failed'})
-        return jsonify({"error": "Oracle Chat (Gemini API) is not configured on the server."}), 503 # Service Unavailable
+    if not ORACLE_API_ENDPOINT_URL:
+        log_activity('oracle_api_error', details={'error': 'ORACLE_API_ENDPOINT_URL not configured'})
+        return jsonify({"error": "Oracle Chat API endpoint is not configured on the server."}), 503
 
     try:
-        data = request.get_json()
-        if not data:
+        client_data = request.get_json()
+        if not client_data:
             return jsonify({"error": "Invalid JSON payload."}), 400
-            
-        user_message_text = data.get('message')
-        client_history = data.get('history', []) # This is the history from the client
+
+        user_message_text = client_data.get('message')
+        client_history = client_data.get('history', [])
 
         if not user_message_text:
             return jsonify({"error": "No message provided."}), 400
 
-        # Construct the history for Gemini API in the correct format
-        # The client sends a list of {'role': ..., 'parts': [{'text': ...}]}
-        # The Gemini SDK's start_chat() method expects a list of Content objects or dicts.
-        
-        # Start a new chat session for each query for simplicity, using client-provided history
-        # The system instruction is part of the model initialization now.
-        chat_session = gemini_model_instance.start_chat(history=client_history)
-        
-        log_activity('oracle_query_sent', details={'prompt_start': user_message_text[:100], 'history_len': len(client_history)})
-        
-        response = chat_session.send_message(user_message_text)
-        llm_reply = response.text
+        # Prepare payload for the external Google Cloud Function
+        payload = {
+            "message": user_message_text,
+            "history": client_history
+            # The Cloud Function will have its own SYSTEM_INSTRUCTION for Gemini
+        }
 
-        log_activity('oracle_response_received', details={'response_start': llm_reply[:100]})
+        headers = {
+            "Content-Type": "application/json"
+        }
+        # Add authentication header if your Cloud Function is secured with an API key
+        if ORACLE_API_FUNCTION_KEY:
+            headers["X-Api-Key"] = ORACLE_API_FUNCTION_KEY # Or whatever header your CF expects
+
+        log_activity('oracle_query_sent_to_external_api', details={'prompt_start': user_message_text[:100], 'history_len': len(client_history)})
+
+        # Call the external API (Google Cloud Function)
+        response = requests.post(ORACLE_API_ENDPOINT_URL, json=payload, headers=headers, timeout=60) # Increased timeout
+
+        # Check if the external API call was successful
+        response.raise_for_status() # Raises an HTTPError for bad responses (4XX or 5XX)
+
+        response_data = response.json()
+        llm_reply = response_data.get("reply")
+
+        if llm_reply is None:
+            log_activity('oracle_external_api_empty_reply', details=response_data)
+            return jsonify({"error": "Received an empty or invalid reply from the Oracle API."}), 500
+
+        log_activity('oracle_response_received_from_external_api', details={'response_start': llm_reply[:100]})
         return jsonify({"reply": llm_reply})
 
-    except Exception as e:
-        print(f"[ERROR] Error in /api/oracle_chat_query: {e}")
+    except requests.exceptions.Timeout:
+        print(f"[ERROR] Timeout calling Oracle API: {ORACLE_API_ENDPOINT_URL}")
         traceback.print_exc()
-        log_activity('gemini_api_error', details={'error': str(e)})
-        return jsonify({"error": f"An error occurred with the Oracle Chat API: {str(e)}"}), 500
+        log_activity('oracle_api_error', details={'error': 'Timeout calling external Oracle API'})
+        return jsonify({"error": "The Oracle is contemplating deeply and took too long to respond. Please try again."}), 504 # Gateway Timeout
+    except requests.exceptions.HTTPError as http_err:
+        error_message = f"Oracle API HTTP error: {http_err.response.status_code} - {http_err.response.text}"
+        print(f"[ERROR] {error_message}")
+        traceback.print_exc()
+        log_activity('oracle_api_error', details={'error': str(http_err), 'status_code': http_err.response.status_code, 'response': http_err.response.text[:200]})
+        # Try to return a more user-friendly error from the upstream service if possible
+        try:
+            upstream_error = http_err.response.json().get("error", "An error occurred with the Oracle's external service.")
+            return jsonify({"error": upstream_error}), http_err.response.status_code
+        except ValueError: # If upstream response is not JSON
+             return jsonify({"error": f"An error occurred with the Oracle's external service (Status: {http_err.response.status_code})."}), http_err.response.status_code
+
+    except Exception as e:
+        print(f"[ERROR] Error in /api/oracle_chat_query (external call): {e}")
+        traceback.print_exc()
+        log_activity('oracle_api_error', details={'error': str(e)})
+        return jsonify({"error": f"An unexpected error occurred while communicating with the Oracle: {str(e)}"}), 500
 
 
 # --- Other Routes ---
@@ -464,13 +485,11 @@ def view_activity_log():
     cur = None
     try:
         conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor) 
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT id, user_id, activity_type, ip_address, path, details, TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS TZ') as formatted_timestamp FROM activity_log ORDER BY timestamp DESC LIMIT 100")
-        activities = cur.fetchall() 
-        
+        activities = cur.fetchall()
+
         dashboard_url = url_for('hello')
-        # For a more robust solution, consider rendering a separate template for the activity log
-        # This inline HTML is for simplicity during initial development.
         html_output = f"""
         <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Activity Log</title>
         <script src="https://cdn.tailwindcss.com"></script>
@@ -488,7 +507,7 @@ def view_activity_log():
         <table><thead><tr>
         """
         if activities:
-            colnames = list(activities[0].keys()) 
+            colnames = list(activities[0].keys())
             for name in colnames:
                 html_output += f"<th>{name.replace('_', ' ').title()}</th>"
             html_output += "</tr></thead><tbody>"
@@ -509,7 +528,7 @@ def view_activity_log():
             html_output += "</tbody></table>"
         else:
             default_colnames = ['ID', 'User ID', 'Activity Type', 'IP Address', 'Path', 'Details', 'Formatted Timestamp']
-            html_output += "</tr></thead><tbody><tr><td colspan='{len(default_colnames)}'>No activities found.</td></tr></tbody></table>" # Corrected colspan
+            html_output += f"</tr></thead><tbody><tr><td colspan='{len(default_colnames)}'>No activities found.</td></tr></tbody></table>" # Corrected colspan
         html_output += "</body></html>"
         return html_output
     except Exception as e:
@@ -521,5 +540,4 @@ def view_activity_log():
             conn.close()
 
 if __name__ == '__main__':
-    #app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)), debug=True) # Standard port
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5167)), debug=True) # Standard port
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5167)), debug=True)
