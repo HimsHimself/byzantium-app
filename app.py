@@ -5,7 +5,7 @@ import requests # For making HTTP requests to the Cloud Function
 import uuid
 import threading
 from psycopg2.extras import Json, RealDictCursor
-from flask import Flask, request, session, redirect, url_for, render_template, flash, jsonify
+from flask import Flask, request, session, redirect, url_for, render_template, flash, jsonify, g
 from functools import wraps
 from datetime import datetime
 import traceback
@@ -31,27 +31,38 @@ if not ORACLE_API_ENDPOINT_URL:
 oracle_jobs = {}
 
 # --- Database Helper ---
-def get_db_connection():
-    db_url = os.environ.get("DATABASE_URL")
-    if not db_url:
-        raise Exception("DATABASE_URL is not set")
-    return psycopg2.connect(db_url)
+# RATIONALIZED: This function now gets the connection from the Flask 'g' object,
+# which is managed per-request by the before_request and teardown_appcontext handlers.
+def get_db():
+    if 'db' not in g:
+        db_url = os.environ.get("DATABASE_URL")
+        if not db_url:
+            raise Exception("DATABASE_URL is not set")
+        g.db = psycopg2.connect(db_url)
+    return g.db
+
+# RATIONALIZED: This function runs after each request to ensure the database connection is closed.
+@app.teardown_appcontext
+def close_db(e=None):
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
 
 # --- Activity Logging Helper ---
+# Minor modification to use the new get_db() function.
 def log_activity(activity_type, details=None, ip_address=None, user_agent=None, path=None):
-    conn = None
-    cur = None
+    # This function now runs within the request context, so it can use get_db() safely.
     try:
         user_id = 0
         try:
             if 'logged_in' in session:
                 user_id = 1
         except RuntimeError:
-            user_id = -1 # Use a specific ID for system/background tasks
+            user_id = -1 # System/background tasks
 
-        final_ip_address = ip_address or (request.remote_addr if request and request.remote_addr else 'N/A')
-        final_user_agent = user_agent or (request.headers.get('User-Agent') if request and request.headers else 'N/A')
-        final_path = path or (request.path if request and request.path else 'N/A')
+        final_ip_address = ip_address or (request.remote_addr if request else 'N/A')
+        final_user_agent = user_agent or (request.headers.get('User-Agent') if request else 'N/A')
+        final_path = path or (request.path if request else 'N/A')
 
         if details is not None and not isinstance(details, dict):
             details = {"info": str(details)}
@@ -60,17 +71,14 @@ def log_activity(activity_type, details=None, ip_address=None, user_agent=None, 
             INSERT INTO activity_log (user_id, activity_type, ip_address, user_agent, path, details)
             VALUES (%s, %s, %s, %s, %s, %s);
         """
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(sql, (user_id, activity_type, final_ip_address, final_user_agent, final_path, Json(details) if details else None))
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute(sql, (user_id, activity_type, final_ip_address, final_user_agent, final_path, Json(details) if details else None))
         conn.commit()
     except Exception as e:
         print(f"--- CRITICAL: Error logging activity '{activity_type}': {e} ---")
         traceback.print_exc()
-    finally:
-        if conn:
-            if cur: cur.close()
-            conn.close()
+        # Cannot flash here as this may run outside a request context.
 
 # --- Authentication Decorator ---
 def login_required(f):
@@ -127,36 +135,35 @@ def hello():
 @app.route('/notes/folder/<int:folder_id>')
 @login_required
 def notes_page(folder_id=None):
-    conn = None
-    cur = None
     try:
-        conn = get_db_connection()
+        conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         current_folder = None
-        folders_to_display = []
         notes_in_current_folder = []
+        
         if folder_id:
             cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
             current_folder = cur.fetchone()
             if not current_folder:
                 flash('Folder not found.', 'error')
                 return redirect(url_for('notes_page'))
+            # Get subfolders of the current folder
             cur.execute("SELECT * FROM folders WHERE parent_folder_id = %s AND user_id = 1 ORDER BY name", (folder_id,))
             folders_to_display = cur.fetchall()
+            # Get notes in the current folder
             cur.execute("SELECT id, title, folder_id, updated_at FROM notes WHERE folder_id = %s AND user_id = 1 ORDER BY updated_at DESC", (folder_id,))
             notes_in_current_folder = cur.fetchall()
         else:
+            # Get root folders
             cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
             folders_to_display = cur.fetchall()
+            
+        cur.close()
         return render_template('notes.html', folders=folders_to_display, notes_in_folder=notes_in_current_folder, current_folder=current_folder, current_note=None)
     except Exception as e:
         traceback.print_exc()
         flash("Error loading notes.", "error")
         return redirect(url_for('hello'))
-    finally:
-        if conn:
-            if cur: cur.close()
-            conn.close()
 
 @app.route('/add_folder', methods=['POST'])
 @login_required
@@ -165,79 +172,82 @@ def add_folder():
     parent_folder_id_str = request.form.get('parent_folder_id')
     parent_folder_id = int(parent_folder_id_str) if parent_folder_id_str and parent_folder_id_str.isdigit() else None
     redirect_url = url_for('notes_page', folder_id=parent_folder_id) if parent_folder_id else url_for('notes_page')
+    
     if not folder_name:
         flash('Folder name cannot be empty.', 'error')
     else:
-        conn = None; cur = None
+        conn = get_db()
         try:
-            conn = get_db_connection()
-            cur = conn.cursor()
-            cur.execute("INSERT INTO folders (name, parent_folder_id, user_id, created_at, updated_at) VALUES (%s, %s, 1, NOW(), NOW()) RETURNING id", (folder_name, parent_folder_id))
-            new_folder_id = cur.fetchone()[0]
+            with conn.cursor() as cur:
+                cur.execute("INSERT INTO folders (name, parent_folder_id, user_id, created_at, updated_at) VALUES (%s, %s, 1, NOW(), NOW()) RETURNING id", (folder_name, parent_folder_id))
+                new_folder_id = cur.fetchone()[0]
             conn.commit()
             log_activity('folder_created', details={'folder_name': folder_name, 'parent_id': parent_folder_id, 'new_folder_id': new_folder_id})
             flash(f"Folder '{folder_name}' created.", 'success')
             redirect_url = url_for('notes_page', folder_id=new_folder_id)
         except Exception as e:
+            conn.rollback()
             log_activity('folder_create_error', details={'folder_name': folder_name, 'error': str(e)})
-            flash(f"Error: {e}", 'error'); conn.rollback() if conn else None
-        finally:
-            if cur: cur.close();
-            if conn: conn.close()
+            flash(f"Error: {e}", 'error')
     return redirect(redirect_url)
 
 @app.route('/folder/<int:folder_id>/rename', methods=['POST'])
 @login_required
 def rename_folder(folder_id):
     new_folder_name = request.form.get('new_folder_name','').strip()
-    redirect_url = url_for('notes_page', folder_id=folder_id)
-    conn = None; cur = None
+    conn = get_db()
     try:
-        if not new_folder_name: flash('Folder name cannot be empty.', 'error')
-        else:
-            conn = get_db_connection()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+        if not new_folder_name: 
+            flash('Folder name cannot be empty.', 'error')
+            return redirect(url_for('notes_page', folder_id=folder_id))
+        
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("SELECT parent_folder_id FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
             folder_data = cur.fetchone()
-            if not folder_data: flash("Folder not found.", "error"); return redirect(url_for('notes_page'))
+            if not folder_data:
+                flash("Folder not found.", "error")
+                return redirect(url_for('notes_page'))
+            
             cur.execute("UPDATE folders SET name = %s, updated_at = NOW() WHERE id = %s AND user_id = 1", (new_folder_name, folder_id))
-            conn.commit()
-            log_activity('folder_renamed', details={'folder_id': folder_id, 'new_name': new_folder_name})
-            flash(f"Folder renamed to '{new_folder_name}'.", 'success')
-            parent_id = folder_data['parent_folder_id']
-            redirect_url = url_for('notes_page', folder_id=parent_id) if parent_id else url_for('notes_page')
+        conn.commit()
+        
+        log_activity('folder_renamed', details={'folder_id': folder_id, 'new_name': new_folder_name})
+        flash(f"Folder renamed to '{new_folder_name}'.", 'success')
+        parent_id = folder_data['parent_folder_id']
+        redirect_url = url_for('notes_page', folder_id=parent_id) if parent_id else url_for('notes_page')
+        return redirect(redirect_url)
+
     except Exception as e:
+        conn.rollback()
         log_activity('folder_rename_error', details={'folder_id': folder_id, 'error': str(e)})
-        flash(f"Error: {e}", 'error'); conn.rollback() if conn else None
-    finally:
-        if cur: cur.close();
-        if conn: conn.close()
-    return redirect(redirect_url)
+        flash(f"Error: {e}", 'error')
+        return redirect(url_for('notes_page', folder_id=folder_id))
 
 @app.route('/folder/<int:folder_id>/delete', methods=['POST'])
 @login_required
 def delete_folder(folder_id):
-    conn = None; cur = None
+    conn = get_db()
     parent_id_of_deleted_folder = None
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT name, parent_folder_id FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
-        folder_data = cur.fetchone()
-        if not folder_data: flash("Folder not found.", "error"); return redirect(url_for('notes_page'))
-        folder_name_for_log = folder_data['name']
-        parent_id_of_deleted_folder = folder_data['parent_folder_id']
-        cur.execute("DELETE FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT name, parent_folder_id FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
+            folder_data = cur.fetchone()
+            if not folder_data: 
+                flash("Folder not found.", "error")
+                return redirect(url_for('notes_page'))
+            folder_name_for_log = folder_data['name']
+            parent_id_of_deleted_folder = folder_data['parent_folder_id']
+            cur.execute("DELETE FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
         conn.commit()
         log_activity('folder_deleted', details={'folder_id': folder_id, 'folder_name': folder_name_for_log})
         flash(f"Folder '{folder_name_for_log}' deleted.", 'success')
     except Exception as e:
+        conn.rollback()
         log_activity('folder_delete_error', details={'folder_id': folder_id, 'error': str(e)})
-        flash(f"Error: {e}", 'error'); conn.rollback() if conn else None
-    finally:
-        if cur: cur.close();
-        if conn: conn.close()
-    if parent_id_of_deleted_folder: return redirect(url_for('notes_page', folder_id=parent_id_of_deleted_folder))
+        flash(f"Error: {e}", 'error')
+        
+    if parent_id_of_deleted_folder: 
+        return redirect(url_for('notes_page', folder_id=parent_id_of_deleted_folder))
     return redirect(url_for('notes_page'))
 
 @app.route('/notes/folder/<int:folder_id>/add_note', methods=['POST'])
@@ -245,86 +255,80 @@ def delete_folder(folder_id):
 def add_note(folder_id):
     note_title = request.form.get('note_title','').strip()
     redirect_url = url_for('notes_page', folder_id=folder_id)
-    if not note_title: flash('Note title cannot be empty.', 'error')
+    if not note_title: 
+        flash('Note title cannot be empty.', 'error')
     else:
-        conn = None; cur = None
+        conn = get_db()
         try:
-            conn = get_db_connection()
-            cur = conn.cursor()
-            cur.execute("INSERT INTO notes (title, content, folder_id, user_id, created_at, updated_at) VALUES (%s, %s, %s, 1, NOW(), NOW()) RETURNING id",(note_title, '', folder_id))
-            new_note_id = cur.fetchone()[0]
+            with conn.cursor() as cur:
+                cur.execute("INSERT INTO notes (title, content, folder_id, user_id, created_at, updated_at) VALUES (%s, %s, %s, 1, NOW(), NOW()) RETURNING id",(note_title, '', folder_id))
+                new_note_id = cur.fetchone()[0]
             conn.commit()
             log_activity('note_created', details={'note_title': note_title, 'folder_id': folder_id, 'note_id': new_note_id})
             flash(f"Note '{note_title}' created.", 'success')
             redirect_url = url_for('view_note', note_id=new_note_id)
         except Exception as e:
+            conn.rollback()
             log_activity('note_create_error', details={'note_title': note_title, 'folder_id': folder_id, 'error': str(e)})
-            flash(f"Error: {e}", 'error'); conn.rollback() if conn else None
-        finally:
-            if cur: cur.close();
-            if conn: conn.close()
+            flash(f"Error: {e}", 'error')
     return redirect(redirect_url)
 
 @app.route('/note/<int:note_id>', methods=['GET'])
 @login_required
 def view_note(note_id):
-    conn = None; cur = None
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM notes WHERE id = %s AND user_id = 1", (note_id,))
-        current_note = cur.fetchone()
-        if not current_note: flash('Note not found.', 'error'); return redirect(url_for('notes_page'))
+        conn = get_db()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT * FROM notes WHERE id = %s AND user_id = 1", (note_id,))
+            current_note = cur.fetchone()
+            if not current_note: 
+                flash('Note not found.', 'error')
+                return redirect(url_for('notes_page'))
 
-        folder_id_for_sidebar_list = current_note['folder_id']
-        current_folder_context = None
-        folders_to_display_in_sidebar = []
-        if folder_id_for_sidebar_list:
-            cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id_for_sidebar_list,))
-            current_folder_context = cur.fetchone()
-            if current_folder_context:
-                cur.execute("SELECT * FROM folders WHERE parent_folder_id = %s AND user_id = 1 ORDER BY name", (current_folder_context['parent_folder_id'],))
+            folder_id = current_note['folder_id']
+            cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
+            current_folder = cur.fetchone()
+            
+            # This logic determines which parent folder to get the sub-folder list from.
+            parent_id_for_folder_list = current_folder['parent_folder_id'] if current_folder else None
+            if parent_id_for_folder_list:
+                cur.execute("SELECT * FROM folders WHERE parent_folder_id = %s AND user_id = 1 ORDER BY name", (parent_id_for_folder_list,))
             else:
-                cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
-            folders_to_display_in_sidebar = cur.fetchall()
-        else:
-            cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
-            folders_to_display_in_sidebar = cur.fetchall()
-
-        cur.execute("SELECT id, title, updated_at FROM notes WHERE folder_id = %s AND user_id = 1 ORDER BY updated_at DESC", (current_note['folder_id'],))
-        notes_in_same_folder = cur.fetchall()
+                 cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
+            folders_to_display = cur.fetchall()
+            
+            cur.execute("SELECT id, title, updated_at FROM notes WHERE folder_id = %s AND user_id = 1 ORDER BY updated_at DESC", (folder_id,))
+            notes_in_same_folder = cur.fetchall()
         
-        return render_template('notes.html', folders=folders_to_display_in_sidebar, current_folder=current_folder_context, notes_in_folder=notes_in_same_folder, current_note=current_note)
+        return render_template('notes.html', folders=folders_to_display, current_folder=current_folder, notes_in_folder=notes_in_same_folder, current_note=current_note)
     except Exception as e:
-        traceback.print_exc(); flash("Error viewing note.", "error");
+        traceback.print_exc()
+        flash("Error viewing note.", "error")
         return redirect(url_for('notes_page'))
-    finally:
-        if cur: cur.close();
-        if conn: conn.close()
 
 @app.route('/note/<int:note_id>/rename', methods=['POST'])
 @login_required
 def rename_note(note_id):
     new_note_title = request.form.get('new_note_title','').strip()
     redirect_url = url_for('view_note', note_id=note_id)
-    if not new_note_title: flash("Note title cannot be empty.", "error")
+    if not new_note_title: 
+        flash("Note title cannot be empty.", "error")
     else:
-        conn = None; cur = None
+        conn = get_db()
         try:
-            conn = get_db_connection()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("SELECT id FROM notes WHERE id = %s AND user_id = 1", (note_id,))
-            if not cur.fetchone(): flash("Note not found.", "error"); return redirect(url_for('notes_page'))
-            cur.execute("UPDATE notes SET title = %s, updated_at = NOW() WHERE id = %s AND user_id = 1",(new_note_title, note_id))
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT id FROM notes WHERE id = %s AND user_id = 1", (note_id,))
+                if not cur.fetchone(): 
+                    flash("Note not found.", "error")
+                    return redirect(url_for('notes_page'))
+                cur.execute("UPDATE notes SET title = %s, updated_at = NOW() WHERE id = %s AND user_id = 1",(new_note_title, note_id))
             conn.commit()
             log_activity('note_renamed', details={'note_id': note_id, 'new_title': new_note_title})
             flash('Note renamed.', 'success')
         except Exception as e:
+            conn.rollback()
             log_activity('note_rename_error', details={'note_id': note_id, 'error': str(e)})
-            flash(f"Error: {e}", 'error'); conn.rollback() if conn else None
-        finally:
-            if cur: cur.close();
-            if conn: conn.close()
+            flash(f"Error: {e}", 'error')
     return redirect(redirect_url)
 
 @app.route('/note/<int:note_id>/update', methods=['POST'])
@@ -332,48 +336,48 @@ def rename_note(note_id):
 def update_note(note_id):
     new_content = request.form.get('note_content', '')
     redirect_url = url_for('view_note', note_id=note_id)
-    conn = None; cur = None
+    conn = get_db()
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT title FROM notes WHERE id = %s AND user_id = 1", (note_id,))
-        note_data = cur.fetchone()
-        if not note_data: flash("Note not found.", "error"); return redirect(url_for('notes_page'))
-        cur.execute("UPDATE notes SET content = %s, updated_at = NOW() WHERE id = %s AND user_id = 1", (new_content, note_id))
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT title FROM notes WHERE id = %s AND user_id = 1", (note_id,))
+            note_data = cur.fetchone()
+            if not note_data: 
+                flash("Note not found.", "error")
+                return redirect(url_for('notes_page'))
+            cur.execute("UPDATE notes SET content = %s, updated_at = NOW() WHERE id = %s AND user_id = 1", (new_content, note_id))
         conn.commit()
         log_activity('note_updated', details={'note_id': note_id, 'note_title': note_data['title']})
         flash('Note updated.', 'success')
     except Exception as e:
+        conn.rollback()
         log_activity('note_update_error', details={'note_id': note_id, 'error': str(e)})
-        flash(f"Error: {e}", 'error'); conn.rollback() if conn else None
-    finally:
-        if cur: cur.close();
-        if conn: conn.close()
+        flash(f"Error: {e}", 'error')
     return redirect(redirect_url)
 
 @app.route('/note/<int:note_id>/delete', methods=['POST'])
 @login_required
 def delete_note(note_id):
-    conn = None; cur = None
+    conn = get_db()
     folder_note_was_in = None
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT title, folder_id FROM notes WHERE id = %s AND user_id = 1", (note_id,))
-        note_data = cur.fetchone()
-        if not note_data: flash("Note not found.", "error"); return redirect(url_for('notes_page'))
-        folder_note_was_in = note_data['folder_id']
-        cur.execute("DELETE FROM notes WHERE id = %s AND user_id = 1", (note_id,))
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT title, folder_id FROM notes WHERE id = %s AND user_id = 1", (note_id,))
+            note_data = cur.fetchone()
+            if not note_data: 
+                flash("Note not found.", "error")
+                return redirect(url_for('notes_page'))
+            folder_note_was_in = note_data['folder_id']
+            cur.execute("DELETE FROM notes WHERE id = %s AND user_id = 1", (note_id,))
         conn.commit()
         log_activity('note_deleted', details={'note_id': note_id, 'note_title': note_data['title']})
         flash(f"Note '{note_data['title']}' deleted.", 'success')
     except Exception as e:
+        conn.rollback()
         log_activity('note_delete_error', details={'note_id': note_id, 'error': str(e)})
-        flash(f"Error: {e}", 'error'); conn.rollback() if conn else None
-    finally:
-        if cur: cur.close();
-        if conn: conn.close()
-    if folder_note_was_in: return redirect(url_for('notes_page', folder_id=folder_note_was_in))
+        flash(f"Error: {e}", 'error')
+        
+    if folder_note_was_in: 
+        return redirect(url_for('notes_page', folder_id=folder_note_was_in))
     return redirect(url_for('notes_page'))
 
 # --- Oracle Chat (Gemini) Routes ---
@@ -384,14 +388,12 @@ def oracle_chat_page():
         flash("Oracle Chat is currently unavailable (API endpoint not configured). Please check server logs.", "error")
     return render_template('oracle_chat.html')
 
-# MODIFIED: Accepts request context and has improved error handling and timeout.
 def run_oracle_query_in_background(job_id, payload, ip_address, user_agent, path):
     try:
         headers = { "Content-Type": "application/json" }
         if ORACLE_API_FUNCTION_KEY:
             headers["X-Api-Key"] = ORACLE_API_FUNCTION_KEY
 
-        # MODIFIED: Increased timeout to 300 seconds (5 minutes).
         response = requests.post(ORACLE_API_ENDPOINT_URL, json=payload, headers=headers, timeout=300)
         response.raise_for_status()
         
@@ -407,8 +409,6 @@ def run_oracle_query_in_background(job_id, payload, ip_address, user_agent, path
             details={'job_id': job_id, 'response_start': llm_reply[:100]},
             ip_address=ip_address, user_agent=user_agent, path=path
         )
-
-    # MODIFIED: Added specific exception for timeouts for better user feedback.
     except requests.exceptions.Timeout:
         print(f"[ERROR] Timeout error for job {job_id}")
         traceback.print_exc()
@@ -443,18 +443,11 @@ def api_oracle_chat_start():
     job_id = str(uuid.uuid4())
     oracle_jobs[job_id] = {"status": "pending", "reply": None}
     
-    payload = {
-        "message": client_data.get('message'),
-        "history": client_data.get('history', [])
-    }
+    payload = { "message": client_data.get('message'), "history": client_data.get('history', []) }
     
-    ip_address = request.remote_addr
-    user_agent = request.headers.get('User-Agent')
-    path = request.path
-
     thread = threading.Thread(
         target=run_oracle_query_in_background,
-        args=(job_id, payload, ip_address, user_agent, path)
+        args=(job_id, payload, request.remote_addr, request.headers.get('User-Agent'), request.path)
     )
     thread.daemon = True
     thread.start()
@@ -479,31 +472,23 @@ def api_oracle_chat_status(job_id):
 @app.route('/db_test')
 @login_required
 def db_test():
-    conn = None
-    cur = None
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT version();")
-        db_version = cur.fetchone()
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute("SELECT version();")
+            db_version = cur.fetchone()
         return f"Database connection successful!<br/>PostgreSQL version: {db_version[0]}"
     except Exception as e:
         return f"Database connection failed: {e}", 500
-    finally:
-        if conn:
-            if cur: cur.close()
-            conn.close()
 
 @app.route('/admin/activity_log')
 @login_required
 def view_activity_log():
-    conn = None
-    cur = None
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT id, user_id, activity_type, ip_address, path, details, TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS TZ') as formatted_timestamp FROM activity_log ORDER BY timestamp DESC LIMIT 100")
-        activities = cur.fetchall()
+        conn = get_db()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT id, user_id, activity_type, ip_address, path, details, TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS TZ') as formatted_timestamp FROM activity_log ORDER BY timestamp DESC LIMIT 100")
+            activities = cur.fetchall()
 
         dashboard_url = url_for('hello')
         html_parts = [
@@ -533,10 +518,7 @@ def view_activity_log():
                 for col_name in colnames:
                     value = activity.get(col_name)
                     if col_name == 'details' and value is not None:
-                        try:
-                            details_json = json.dumps(value, indent=2)
-                        except TypeError:
-                            details_json = str(value)
+                        details_json = json.dumps(value, indent=2)
                         html_parts.append(f"<td><pre class='details-json'>{details_json}</pre></td>")
                     else:
                         html_parts.append(f"<td>{str(value) if value is not None else ''}</td>")
@@ -551,10 +533,6 @@ def view_activity_log():
     except Exception as e:
         log_activity('error', details={"function": "view_activity_log", "error": str(e)})
         return f"Error fetching activity log: {e}", 500
-    finally:
-        if conn:
-            if cur: cur.close()
-            conn.close()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5167)), debug=False)
