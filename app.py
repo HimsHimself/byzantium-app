@@ -6,7 +6,7 @@ from psycopg2.extras import Json, RealDictCursor
 from flask import Flask, request, session, redirect, url_for, render_template, flash, jsonify
 from functools import wraps
 import traceback
-from datetime import datetime
+import datetime
 
 app = Flask(__name__)
 # --- Main Configuration (Secret Keys, Passwords, API URLs) ---
@@ -168,10 +168,7 @@ def view_note(note_id):
         cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id_for_sidebar_list,) if folder_id_for_sidebar_list else (None,))
         current_folder_context = cur.fetchone()
         parent_id = current_folder_context['parent_folder_id'] if current_folder_context else None
-        if parent_id:
-            cur.execute("SELECT * FROM folders WHERE parent_folder_id = %s AND user_id = 1 ORDER BY name", (parent_id,))
-        else:
-            cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
+        cur.execute("SELECT * FROM folders WHERE parent_folder_id = %s AND user_id = 1 ORDER BY name", (parent_id,)) if parent_id else cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
         folders_to_display_in_sidebar = cur.fetchall()
         notes_in_same_folder = []
         if current_note['folder_id']:
@@ -229,6 +226,10 @@ def update_note(note_id):
 @app.route('/oracle_chat')
 @login_required
 def oracle_chat_page():
+    """
+    This page now starts a NEW chat session each time it's visited.
+    It creates a session in the DB and passes the new session_id to the template.
+    """
     conn = None
     cur = None
     try:
@@ -252,6 +253,9 @@ def oracle_chat_page():
 @app.route('/api/oracle_chat_query', methods=['POST'])
 @login_required
 def api_oracle_chat_query():
+    """
+    Handles a single chat message. Fetches history from DB, calls API, stores results.
+    """
     if not ORACLE_API_ENDPOINT_URL:
         return jsonify({"error": "Oracle Chat API endpoint is not configured."}), 503
 
@@ -274,20 +278,16 @@ def api_oracle_chat_query():
         db_history = cur.fetchall()
         history_for_api = [{'role': row['role'], 'parts': [{'text': row['text']}]} for row in db_history]
 
-        payload = {"message": user_message, "history": history_for_api[:-1]}
+        payload = {
+            "message": user_message, 
+            "history": history_for_api[:-1]
+        }
         headers = {"Content-Type": "application/json"}
         if ORACLE_API_FUNCTION_KEY:
             headers["X-Api-Key"] = ORACLE_API_FUNCTION_KEY
-        
-        print(f"[INFO] Sending request to Oracle API for session {session_id}...")
+
         response = requests.post(ORACLE_API_ENDPOINT_URL, json=payload, headers=headers, timeout=310)
-        
-        # --- Enhanced Logging ---
-        print(f"[INFO] Oracle API response status: {response.status_code}")
-        print(f"[INFO] Oracle API response text (preview): {response.text[:500]}")
-        
         response.raise_for_status()
-        
         response_data = response.json()
         llm_reply = response_data.get("reply")
 
@@ -299,24 +299,15 @@ def api_oracle_chat_query():
         conn.commit()
         return jsonify({"reply": llm_reply})
 
-    except requests.exceptions.HTTPError as http_err:
-        print(f"[ERROR] HTTPError occurred: {http_err}")
-        if conn: conn.rollback()
-        error_detail = "An unknown error occurred with the Oracle's service."
-        try:
-            error_detail = http_err.response.json().get('error', http_err.response.text)
-        except json.JSONDecodeError:
-            error_detail = http_err.response.text
-        return jsonify({"error": f"Error from Oracle: {error_detail}"}), 500
-    except requests.exceptions.RequestException as req_err:
-        print(f"[ERROR] RequestException occurred: {req_err}")
-        if conn: conn.rollback()
-        return jsonify({"error": f"Could not connect to the Oracle: {str(req_err)}"}), 504
     except Exception as e:
-        print(f"[ERROR] A general exception occurred in api_oracle_chat_query for session {session_id}: {e}")
-        traceback.print_exc()
         if conn: conn.rollback()
-        return jsonify({"error": "An unexpected internal error occurred."}), 500
+        print(f"Error in oracle chat query for session {session_id}: {e}")
+        traceback.print_exc()
+        error_detail = str(e)
+        if isinstance(e, requests.exceptions.HTTPError) and e.response is not None:
+             try: error_detail = e.response.json().get('error', e.response.text)
+             except json.JSONDecodeError: error_detail = e.response.text
+        return jsonify({"error": f"An error occurred: {error_detail}"}), 500
     finally:
         if cur: cur.close()
         if conn: conn.close()
