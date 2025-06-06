@@ -11,28 +11,92 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
 
     <style>
-        .oracle-message-content pre, .oracle-message-content code { font-family: 'Courier New', Courier, monospace; }
-        .oracle-message-content pre { background-color: #282c34; color: #abb2bf; padding: 1em; border-radius: 0.375rem; overflow-x: auto; margin-top: 0.5em; margin-bottom: 0.5em; }
-        .oracle-message-content pre code { background-color: transparent; padding: 0; }
-        .oracle-message-content code:not(pre > code) { background-color: #e2e8f0; color: #4a5568; padding: 0.125em 0.25em; border-radius: 0.25rem; font-size: 0.9em; }
+        /* Custom styles for Markdown elements within chat messages */
+        .oracle-message-content pre, .oracle-message-content code {
+            font-family: 'Courier New', Courier, monospace; /* Consistent monospaced font */
+        }
+
+        .oracle-message-content pre {
+            background-color: #282c34; /* Default for atom-one-dark, adjust if changing theme */
+            color: #abb2bf;
+            padding: 1em;
+            border-radius: 0.375rem; /* Tailwind's rounded-md */
+            overflow-x: auto;
+            margin-top: 0.5em;
+            margin-bottom: 0.5em;
+        }
+        .oracle-message-content pre code {
+          background-color: transparent; /* Code inside pre should be transparent */
+          padding: 0;
+        }
+        /* Inline code */
+        .oracle-message-content code:not(pre > code) {
+            background-color: #e2e8f0; /* Tailwind's gray-200 */
+            color: #4a5568; /* Tailwind's gray-700 */
+            padding: 0.125em 0.25em;
+            border-radius: 0.25rem; /* Tailwind's rounded-sm */
+            font-size: 0.9em;
+        }
+
+        .oracle-message-content table {
+            width: auto; /* Or '100%' for full width within bubble */
+            border-collapse: collapse;
+            margin-top: 1em;
+            margin-bottom: 1em;
+            border: 1px solid #cbd5e1; /* Tailwind's slate-300 */
+        }
+        .oracle-message-content th, .oracle-message-content td {
+            border: 1px solid #cbd5e1; /* Tailwind's slate-300 */
+            padding: 0.5em;
+            text-align: left;
+        }
+        .oracle-message-content th {
+            background-color: #f1f5f9; /* Tailwind's slate-100 */
+        }
+        .oracle-message-content ul, .oracle-message-content ol {
+            margin-left: 1.5rem; /* Indent lists */
+            margin-top: 0.5em;
+            margin-bottom: 0.5em;
+        }
+        .oracle-message-content li {
+            margin-bottom: 0.25em;
+        }
+        .oracle-message-content blockquote {
+            border-left: 4px solid #a78bfa; /* Tailwind's purple-400 */
+            padding-left: 1rem;
+            margin-left: 0;
+            margin-top: 0.5em;
+            margin-bottom: 0.5em;
+            font-style: italic;
+            color: #5b21b6; /* Tailwind's purple-700 */
+        }
+        .oracle-message-content h1, .oracle-message-content h2, .oracle-message-content h3, .oracle-message-content h4 {
+            margin-top: 0.75em;
+            margin-bottom: 0.25em;
+            font-weight: 600; /* semibold */
+        }
+        .oracle-message-content h1 { font-size: 1.5em; } /* Adjust as needed */
+        .oracle-message-content h2 { font-size: 1.25em; }
+        .oracle-message-content h3 { font-size: 1.1em; }
     </style>
 </head>
 
-<div class="content-card rounded-lg p-4 md:p-6 h-full flex flex-col" data-session-id="{{ session_id }}">
+<div class="content-card rounded-lg p-4 md:p-6 h-full flex flex-col">
     <h2 class="text-2xl font-semibold text-slate-800 mb-4">Oracle Chat: SAS & Programming Consultation</h2>
-    <p class="text-sm text-slate-500 mb-4">A new chat session has been started (ID: {{ session_id }}). History is saved to the database.</p>
-
-    <div id="chat-messages" class="flex-grow overflow-y-auto mb-4 p-4 border rounded-md bg-slate-50/50 space-y-4">
+    <p class="text-sm text-slate-500 mb-4">Pose your questions on SAS, Python, SQL, or other programming topics to the Oracle. Your chat history is for this session only.</p>
+    
+    <div id="chat-messages" class="flex-grow overflow-y-auto mb-4 p-4 border border-slate-200 rounded-md bg-slate-50/50 space-y-4">
         <div class="p-3 rounded-lg bg-purple-100 text-purple-800 max-w-xl self-start text-sm shadow">
             <p class="font-semibold">The Oracle</p>
-            <p>Greetings. A new session has begun. How may I illuminate your path in SAS, Python, or SQL today?</p>
+            <p>Greetings. How may I illuminate your path in SAS, Python, or SQL today?</p>
         </div>
     </div>
 
     <form id="chat-form" class="mt-auto">
         <div class="flex items-center">
             <input type="text" id="user-message" placeholder="Consult the Oracle..." required
-                   class="form-input flex-grow p-3 text-sm rounded-l-md focus:ring-1 focus:outline-none focus:ring-purple-500 focus:border-purple-500">
+                   class="form-input flex-grow p-3 text-sm rounded-l-md focus:ring-1 focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                   style="background-color: #f1f5f9; border-color: #cbd5e1; color: #334155;">
             <button type="submit" id="send-button"
                     class="btn-primary text-sm font-semibold px-6 py-3 rounded-r-md transition-colors duration-300 flex items-center justify-center"
                     style="background-color: #4B0082; color: #ffffff;">
@@ -47,44 +111,69 @@
 </div>
 
 <script>
-    const converter = new showdown.Converter({ tables: true, simpleLineBreaks: true, openLinksInNewWindow: true });
-    const chatContainer = document.querySelector('.content-card');
     const chatMessagesDiv = document.getElementById('chat-messages');
     const chatForm = document.getElementById('chat-form');
     const userMessageInput = document.getElementById('user-message');
     const sendButton = document.getElementById('send-button');
     const sendButtonText = document.getElementById('send-button-text');
     const loadingSpinner = document.getElementById('loading-spinner');
-    const sessionId = chatContainer.dataset.sessionId;
+
+    let chatHistory = []; // Session-only history
+
+    // Initialize Showdown converter
+    const converter = new showdown.Converter({
+        tables: true,                         // Enable table rendering
+        strikethrough: true,                  // Enable strikethrough
+        tasklists: true,                      // Enable task lists e.g., - [x]
+        simpleLineBreaks: true,               // Convert single newlines to <br>
+        ghCompatibleHeaderId: true,           // Generate GitHub-compatible header IDs
+        openLinksInNewWindow: true,           // Open links in new tabs
+        emoji: true                           // Enable emoji conversion like :D
+    });
 
     function appendMessage(sender, messageText, isUser = false) {
         const messageDiv = document.createElement('div');
         messageDiv.classList.add('p-3', 'rounded-lg', 'max-w-xl', 'text-sm', 'shadow', 'break-words');
+        
         const senderP = document.createElement('p');
         senderP.classList.add('font-semibold', 'mb-1');
         senderP.textContent = sender;
-        const messageContentDiv = document.createElement('div');
+
+        const messageContentDiv = document.createElement('div'); // Use a div for content
+
         if (isUser) {
             messageDiv.classList.add('bg-blue-100', 'text-blue-800', 'self-end', 'ml-auto');
-            messageContentDiv.textContent = messageText;
+            messageContentDiv.textContent = messageText; // User messages are plain text
         } else {
             messageDiv.classList.add('bg-purple-100', 'text-purple-800', 'self-start');
-            messageContentDiv.classList.add('oracle-message-content');
-            messageContentDiv.innerHTML = converter.makeHtml(messageText);
+            // Add a specific class for Oracle messages to target with CSS for markdown elements
+            messageContentDiv.classList.add('oracle-message-content'); 
+            const htmlContent = converter.makeHtml(messageText); // Convert Oracle's message from Markdown
+            messageContentDiv.innerHTML = htmlContent; // Set as HTML
         }
+        
         messageDiv.appendChild(senderP);
-        messageDiv.appendChild(messageContentDiv);
+        messageDiv.appendChild(messageContentDiv); // Append content div
         chatMessagesDiv.appendChild(messageDiv);
-        messageContentDiv.querySelectorAll('pre code').forEach((block) => { hljs.highlightElement(block); });
+
+        // Apply syntax highlighting to Oracle's messages after HTML is inserted
+        if (!isUser) {
+            messageContentDiv.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+        }
+
         chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
     }
 
     chatForm.addEventListener('submit', async function(event) {
         event.preventDefault();
         const userText = userMessageInput.value.trim();
-        if (!userText || !sessionId) return;
+        if (!userText) return;
 
         appendMessage('You', userText, true);
+        const historyForApi = [...chatHistory]; 
+        chatHistory.push({ role: 'user', parts: [{ text: userText }] });
         userMessageInput.value = '';
         
         sendButton.disabled = true;
@@ -92,11 +181,21 @@
         loadingSpinner.classList.remove('hidden');
 
         try {
-            const response = await fetch("{{ url_for('api_oracle_chat_query') }}", {
+            const response = await fetch("{{ url_for('api_oracle_chat_query') }}", { //
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: userText, session_id: sessionId })
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    message: userText, 
+                    history: historyForApi // Send history *before* current user message
+                })
             });
+
+            sendButton.disabled = false;
+            sendButtonText.classList.remove('hidden');
+            loadingSpinner.classList.add('hidden');
+            userMessageInput.focus();
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({error: "Failed to parse error response."}));
@@ -104,17 +203,32 @@
             }
 
             const data = await response.json();
-            appendMessage('The Oracle', data.reply);
+            appendMessage('The Oracle', data.reply); // This will now be rendered as Markdown
+            chatHistory.push({ role: 'model', parts: [{ text: data.reply }] }); // Add LLM response to local history
 
         } catch (error) {
             console.error('Error sending message:', error);
-            appendMessage('System', 'Error: Could not get a response. ' + error.message, false);
-        } finally {
-            sendButton.disabled = false;
-            sendButtonText.classList.remove('hidden');
-            loadingSpinner.classList.add('hidden');
-            userMessageInput.focus();
+            // Display system error messages
+            const errorText = 'Error: Could not get a response. ' + error.message;
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('p-3', 'rounded-lg', 'max-w-xl', 'text-sm', 'shadow', 'break-words', 'bg-red-100', 'text-red-800', 'self-start');
+            const senderP = document.createElement('p');
+            senderP.classList.add('font-semibold', 'mb-1');
+            senderP.textContent = 'System';
+            const messageP = document.createElement('p');
+            messageP.textContent = errorText;
+            messageDiv.appendChild(senderP);
+            messageDiv.appendChild(messageP);
+            chatMessagesDiv.appendChild(messageDiv);
+            chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
         }
     });
+
+    // If you've loaded specific languages for highlight.js and it doesn't auto-initialize,
+    // you might need this, but usually, highlightElement is sufficient for dynamic content.
+    // document.addEventListener('DOMContentLoaded', (event) => {
+    //   hljs.highlightAll();
+    // });
 </script>
 {% endblock %}
