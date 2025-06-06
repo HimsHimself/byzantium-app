@@ -38,22 +38,17 @@ def get_db_connection():
     return psycopg2.connect(db_url)
 
 # --- Activity Logging Helper ---
-# MODIFIED: Function now accepts optional request context arguments for safe use in background threads.
 def log_activity(activity_type, details=None, ip_address=None, user_agent=None, path=None):
     conn = None
     cur = None
     try:
-        # This function must be able to run outside a request context for background threads.
-        # It attempts to get session info, but gracefully handles its absence.
         user_id = 0
         try:
             if 'logged_in' in session:
                 user_id = 1
         except RuntimeError:
-            # This occurs when running outside a request context.
             user_id = -1 # Use a specific ID for system/background tasks
 
-        # If context is not passed directly, try to get it from Flask's request object.
         final_ip_address = ip_address or (request.remote_addr if request and request.remote_addr else 'N/A')
         final_user_agent = user_agent or (request.headers.get('User-Agent') if request and request.headers else 'N/A')
         final_path = path or (request.path if request and request.path else 'N/A')
@@ -128,7 +123,6 @@ def hello():
     return render_template('index.html')
 
 # --- Notes and Folders Routes ---
-# This entire section is restored from your original code and is unchanged.
 @app.route('/notes/')
 @app.route('/notes/folder/<int:folder_id>')
 @login_required
@@ -288,13 +282,12 @@ def view_note(note_id):
         if folder_id_for_sidebar_list:
             cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id_for_sidebar_list,))
             current_folder_context = cur.fetchone()
-            # Handle case where folder might have been deleted but note still exists
             if current_folder_context:
                 cur.execute("SELECT * FROM folders WHERE parent_folder_id = %s AND user_id = 1 ORDER BY name", (current_folder_context['parent_folder_id'],))
-            else: # If note's folder doesn't exist, show root folders
+            else:
                 cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
             folders_to_display_in_sidebar = cur.fetchall()
-        else: # Note is in root, show root folders
+        else:
             cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
             folders_to_display_in_sidebar = cur.fetchall()
 
@@ -383,24 +376,23 @@ def delete_note(note_id):
     if folder_note_was_in: return redirect(url_for('notes_page', folder_id=folder_note_was_in))
     return redirect(url_for('notes_page'))
 
-# --- Oracle Chat (Gemini) Routes - REBUILT FOR ASYNCHRONOUS POLLING ---
+# --- Oracle Chat (Gemini) Routes ---
 @app.route('/oracle_chat')
 @login_required
 def oracle_chat_page():
-    # This page just serves the HTML template.
     if not ORACLE_API_ENDPOINT_URL:
         flash("Oracle Chat is currently unavailable (API endpoint not configured). Please check server logs.", "error")
     return render_template('oracle_chat.html')
 
-# MODIFIED: Accepts request context for safe background logging.
+# MODIFIED: Accepts request context and has improved error handling and timeout.
 def run_oracle_query_in_background(job_id, payload, ip_address, user_agent, path):
     try:
         headers = { "Content-Type": "application/json" }
         if ORACLE_API_FUNCTION_KEY:
             headers["X-Api-Key"] = ORACLE_API_FUNCTION_KEY
 
-        # MODIFIED: Increased timeout to 180 seconds (3 minutes) to prevent read timeouts.
-        response = requests.post(ORACLE_API_ENDPOINT_URL, json=payload, headers=headers, timeout=180)
+        # MODIFIED: Increased timeout to 300 seconds (5 minutes).
+        response = requests.post(ORACLE_API_ENDPOINT_URL, json=payload, headers=headers, timeout=300)
         response.raise_for_status()
         
         response_data = response.json()
@@ -416,13 +408,22 @@ def run_oracle_query_in_background(job_id, payload, ip_address, user_agent, path
             ip_address=ip_address, user_agent=user_agent, path=path
         )
 
+    # MODIFIED: Added specific exception for timeouts for better user feedback.
+    except requests.exceptions.Timeout:
+        print(f"[ERROR] Timeout error for job {job_id}")
+        traceback.print_exc()
+        error_message = "The Oracle took more than 5 minutes to respond. The request has been cancelled. Please try a simpler question or try again later."
+        oracle_jobs[job_id] = {"status": "error", "reply": error_message}
+        log_activity(
+            'oracle_api_error',
+            details={'job_id': job_id, 'error': 'Timeout after 300 seconds'},
+            ip_address=ip_address, user_agent=user_agent, path=path
+        )
     except Exception as e:
         print(f"[ERROR] Background thread error for job {job_id}: {e}")
         traceback.print_exc()
-        # The reply in the error case will be shown to the user.
-        error_message = f"The Oracle could not respond. A timeout or other error occurred. Details: {str(e)}"
+        error_message = f"The Oracle could not respond due to an unexpected error. Details: {str(e)}"
         oracle_jobs[job_id] = {"status": "error", "reply": error_message}
-        # MODIFIED: Pass the captured context to log_activity. This now works correctly.
         log_activity(
             'oracle_api_error',
             details={'job_id': job_id, 'error': str(e)},
@@ -447,12 +448,10 @@ def api_oracle_chat_start():
         "history": client_data.get('history', [])
     }
     
-    # NEW: Capture request context before starting the thread.
     ip_address = request.remote_addr
     user_agent = request.headers.get('User-Agent')
     path = request.path
 
-    # MODIFIED: Pass the captured context as arguments to the thread's target function.
     thread = threading.Thread(
         target=run_oracle_query_in_background,
         args=(job_id, payload, ip_address, user_agent, path)
@@ -460,7 +459,6 @@ def api_oracle_chat_start():
     thread.daemon = True
     thread.start()
     
-    # Log the start of the job within the request context.
     log_activity('oracle_query_sent_to_external_api', details={'job_id': job_id, 'prompt_start': payload['message'][:100]})
 
     return jsonify({"job_id": job_id}), 202
@@ -473,9 +471,8 @@ def api_oracle_chat_status(job_id):
         return jsonify({"status": "error", "reply": "Job not found. It may have been cleared from memory."}), 404
         
     if job['status'] == 'complete' or job['status'] == 'error':
-        # Pop the job from memory after retrieving it to prevent memory leaks
         return jsonify(oracle_jobs.pop(job_id))
-    else: # Status is 'pending'
+    else:
         return jsonify(job)
 
 # --- Other Routes ---
@@ -505,12 +502,10 @@ def view_activity_log():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Added user_id to the query for more context
         cur.execute("SELECT id, user_id, activity_type, ip_address, path, details, TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS TZ') as formatted_timestamp FROM activity_log ORDER BY timestamp DESC LIMIT 100")
         activities = cur.fetchall()
 
         dashboard_url = url_for('hello')
-        # Using a more robust method to build the HTML for clarity
         html_parts = [
             '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Activity Log</title>',
             '<script src="https://cdn.tailwindcss.com"></script>',
