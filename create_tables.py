@@ -1,6 +1,6 @@
 import os
 import psycopg2
-import json # Not directly used for table creation but good to keep if details are complex
+import json
 
 db_url = os.environ.get("DATABASE_URL")
 if not db_url:
@@ -10,16 +10,11 @@ try:
     conn = psycopg2.connect(db_url)
     cur = conn.cursor()
 
+    # --- Existing Tables ---
     create_activity_log_script = """
     CREATE TABLE IF NOT EXISTS activity_log (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL DEFAULT 0,
-        activity_type VARCHAR(50) NOT NULL,
-        ip_address VARCHAR(45),
-        user_agent TEXT,
-        path TEXT,
-        details JSONB,
-        timestamp TIMESTAMPTZ DEFAULT NOW()
+        id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL DEFAULT 0, activity_type VARCHAR(50) NOT NULL,
+        ip_address VARCHAR(45), user_agent TEXT, path TEXT, details JSONB, timestamp TIMESTAMPTZ DEFAULT NOW()
     );
     """
     cur.execute(create_activity_log_script)
@@ -27,41 +22,49 @@ try:
 
     create_folders_script = """
     CREATE TABLE IF NOT EXISTS folders (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        parent_folder_id INTEGER, -- Nullable for root folders
-        user_id INTEGER NOT NULL DEFAULT 1, -- Assuming user_id 1 for the primary user
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW(),
-        FOREIGN KEY (parent_folder_id) REFERENCES folders (id) ON DELETE CASCADE -- Subfolders deleted with parent
+        id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, parent_folder_id INTEGER,
+        user_id INTEGER NOT NULL DEFAULT 1, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(),
+        FOREIGN KEY (parent_folder_id) REFERENCES folders (id) ON DELETE CASCADE
     );
     """
     cur.execute(create_folders_script)
     print("Table 'folders' created successfully.")
 
-    # Drop the old notes table if it exists with a different foreign key constraint
-    # This is only necessary if you might have run an older version of create_tables.py
-    # that didn't have ON DELETE CASCADE for notes.folder_id.
-    # For a fresh setup, this isn't strictly needed but is safe.
-    # Be cautious with DROP TABLE in a real production environment with data.
-    # cur.execute("DROP TABLE IF EXISTS notes CASCADE;") 
-    # print("Dropped existing 'notes' table if it existed to re-create with CASCADE.")
-
-
     create_notes_script = """
     CREATE TABLE IF NOT EXISTS notes (
-        id SERIAL PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        content TEXT,
-        folder_id INTEGER,
-        user_id INTEGER NOT NULL DEFAULT 1, -- Assuming user_id 1
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW(),
-        FOREIGN KEY (folder_id) REFERENCES folders (id) ON DELETE CASCADE -- Notes deleted with folder
+        id SERIAL PRIMARY KEY, title VARCHAR(255) NOT NULL, content TEXT, folder_id INTEGER,
+        user_id INTEGER NOT NULL DEFAULT 1, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(),
+        FOREIGN KEY (folder_id) REFERENCES folders (id) ON DELETE CASCADE
     );
     """
     cur.execute(create_notes_script)
     print("Table 'notes' created successfully.")
+
+    # --- New Chat Tables ---
+    create_chat_sessions_script = """
+    CREATE TABLE IF NOT EXISTS chat_sessions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL DEFAULT 1,
+        title VARCHAR(255),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    """
+    cur.execute(create_chat_sessions_script)
+    print("Table 'chat_sessions' created successfully.")
+
+    create_chat_messages_script = """
+    CREATE TABLE IF NOT EXISTS chat_messages (
+        id SERIAL PRIMARY KEY,
+        session_id INTEGER NOT NULL,
+        role VARCHAR(10) NOT NULL, -- 'user' or 'model'
+        content TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        FOREIGN KEY (session_id) REFERENCES chat_sessions (id) ON DELETE CASCADE
+    );
+    """
+    cur.execute(create_chat_messages_script)
+    print("Table 'chat_messages' created successfully.")
+
 
     conn.commit()
     cur.close()
