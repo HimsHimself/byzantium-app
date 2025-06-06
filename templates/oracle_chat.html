@@ -11,71 +11,31 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
 
     <style>
-        /* Custom styles for Markdown elements within chat messages */
+        /* All your existing custom styles remain unchanged */
         .oracle-message-content pre, .oracle-message-content code {
-            font-family: 'Courier New', Courier, monospace; /* Consistent monospaced font */
+            font-family: 'Courier New', Courier, monospace;
         }
-
         .oracle-message-content pre {
-            background-color: #282c34; /* Default for atom-one-dark, adjust if changing theme */
-            color: #abb2bf;
-            padding: 1em;
-            border-radius: 0.375rem; /* Tailwind's rounded-md */
-            overflow-x: auto;
-            margin-top: 0.5em;
-            margin-bottom: 0.5em;
+            background-color: #282c34; color: #abb2bf; padding: 1em; border-radius: 0.375rem; overflow-x: auto; margin-top: 0.5em; margin-bottom: 0.5em;
         }
-        .oracle-message-content pre code {
-          background-color: transparent; /* Code inside pre should be transparent */
-          padding: 0;
-        }
-        /* Inline code */
+        .oracle-message-content pre code { background-color: transparent; padding: 0; }
         .oracle-message-content code:not(pre > code) {
-            background-color: #e2e8f0; /* Tailwind's gray-200 */
-            color: #4a5568; /* Tailwind's gray-700 */
-            padding: 0.125em 0.25em;
-            border-radius: 0.25rem; /* Tailwind's rounded-sm */
-            font-size: 0.9em;
+            background-color: #e2e8f0; color: #4a5568; padding: 0.125em 0.25em; border-radius: 0.25rem; font-size: 0.9em;
         }
-
         .oracle-message-content table {
-            width: auto; /* Or '100%' for full width within bubble */
-            border-collapse: collapse;
-            margin-top: 1em;
-            margin-bottom: 1em;
-            border: 1px solid #cbd5e1; /* Tailwind's slate-300 */
+            width: auto; border-collapse: collapse; margin-top: 1em; margin-bottom: 1em; border: 1px solid #cbd5e1;
         }
-        .oracle-message-content th, .oracle-message-content td {
-            border: 1px solid #cbd5e1; /* Tailwind's slate-300 */
-            padding: 0.5em;
-            text-align: left;
-        }
-        .oracle-message-content th {
-            background-color: #f1f5f9; /* Tailwind's slate-100 */
-        }
-        .oracle-message-content ul, .oracle-message-content ol {
-            margin-left: 1.5rem; /* Indent lists */
-            margin-top: 0.5em;
-            margin-bottom: 0.5em;
-        }
-        .oracle-message-content li {
-            margin-bottom: 0.25em;
-        }
+        .oracle-message-content th, .oracle-message-content td { border: 1px solid #cbd5e1; padding: 0.5em; text-align: left; }
+        .oracle-message-content th { background-color: #f1f5f9; }
+        .oracle-message-content ul, .oracle-message-content ol { margin-left: 1.5rem; margin-top: 0.5em; margin-bottom: 0.5em; }
+        .oracle-message-content li { margin-bottom: 0.25em; }
         .oracle-message-content blockquote {
-            border-left: 4px solid #a78bfa; /* Tailwind's purple-400 */
-            padding-left: 1rem;
-            margin-left: 0;
-            margin-top: 0.5em;
-            margin-bottom: 0.5em;
-            font-style: italic;
-            color: #5b21b6; /* Tailwind's purple-700 */
+            border-left: 4px solid #a78bfa; padding-left: 1rem; margin-left: 0; margin-top: 0.5em; margin-bottom: 0.5em; font-style: italic; color: #5b21b6;
         }
         .oracle-message-content h1, .oracle-message-content h2, .oracle-message-content h3, .oracle-message-content h4 {
-            margin-top: 0.75em;
-            margin-bottom: 0.25em;
-            font-weight: 600; /* semibold */
+            margin-top: 0.75em; margin-bottom: 0.25em; font-weight: 600;
         }
-        .oracle-message-content h1 { font-size: 1.5em; } /* Adjust as needed */
+        .oracle-message-content h1 { font-size: 1.5em; }
         .oracle-message-content h2 { font-size: 1.25em; }
         .oracle-message-content h3 { font-size: 1.1em; }
     </style>
@@ -119,17 +79,30 @@
     const loadingSpinner = document.getElementById('loading-spinner');
 
     let chatHistory = []; // Session-only history
+    let pollingInterval; // To hold the interval ID for polling
 
-    // Initialize Showdown converter
     const converter = new showdown.Converter({
-        tables: true,                         // Enable table rendering
-        strikethrough: true,                  // Enable strikethrough
-        tasklists: true,                      // Enable task lists e.g., - [x]
-        simpleLineBreaks: true,               // Convert single newlines to <br>
-        ghCompatibleHeaderId: true,           // Generate GitHub-compatible header IDs
-        openLinksInNewWindow: true,           // Open links in new tabs
-        emoji: true                           // Enable emoji conversion like :D
+        tables: true,
+        strikethrough: true,
+        tasklists: true,
+        simpleLineBreaks: true,
+        ghCompatibleHeaderId: true,
+        openLinksInNewWindow: true,
+        emoji: true
     });
+
+    function setUIWaiting(isWaiting) {
+        sendButton.disabled = isWaiting;
+        userMessageInput.disabled = isWaiting;
+        if (isWaiting) {
+            sendButtonText.classList.add('hidden');
+            loadingSpinner.classList.remove('hidden');
+        } else {
+            sendButtonText.classList.remove('hidden');
+            loadingSpinner.classList.add('hidden');
+            userMessageInput.focus();
+        }
+    }
 
     function appendMessage(sender, messageText, isUser = false) {
         const messageDiv = document.createElement('div');
@@ -138,32 +111,81 @@
         const senderP = document.createElement('p');
         senderP.classList.add('font-semibold', 'mb-1');
         senderP.textContent = sender;
-
-        const messageContentDiv = document.createElement('div'); // Use a div for content
+        const messageContentDiv = document.createElement('div');
 
         if (isUser) {
             messageDiv.classList.add('bg-blue-100', 'text-blue-800', 'self-end', 'ml-auto');
-            messageContentDiv.textContent = messageText; // User messages are plain text
+            messageContentDiv.textContent = messageText;
         } else {
             messageDiv.classList.add('bg-purple-100', 'text-purple-800', 'self-start');
-            // Add a specific class for Oracle messages to target with CSS for markdown elements
-            messageContentDiv.classList.add('oracle-message-content'); 
-            const htmlContent = converter.makeHtml(messageText); // Convert Oracle's message from Markdown
-            messageContentDiv.innerHTML = htmlContent; // Set as HTML
+            messageContentDiv.classList.add('oracle-message-content');
+            const htmlContent = converter.makeHtml(messageText);
+            messageContentDiv.innerHTML = htmlContent;
         }
         
         messageDiv.appendChild(senderP);
-        messageDiv.appendChild(messageContentDiv); // Append content div
+        messageDiv.appendChild(messageContentDiv);
         chatMessagesDiv.appendChild(messageDiv);
 
-        // Apply syntax highlighting to Oracle's messages after HTML is inserted
         if (!isUser) {
             messageContentDiv.querySelectorAll('pre code').forEach((block) => {
                 hljs.highlightElement(block);
             });
         }
-
         chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+    }
+    
+    function appendSystemError(errorMessage) {
+        const errorText = 'System Error: ' + errorMessage;
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('p-3', 'rounded-lg', 'max-w-xl', 'text-sm', 'shadow', 'break-words', 'bg-red-100', 'text-red-800', 'self-start');
+        const senderP = document.createElement('p');
+        senderP.classList.add('font-semibold', 'mb-1');
+        senderP.textContent = 'System';
+        const messageP = document.createElement('p');
+        messageP.textContent = errorText;
+        messageDiv.appendChild(senderP);
+        messageDiv.appendChild(messageP);
+        chatMessagesDiv.appendChild(messageDiv);
+        chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+    }
+    
+    async function pollForResult(jobId) {
+        let attempts = 0;
+        const maxAttempts = 90; // 90 attempts * 2 seconds = 3 minutes timeout
+
+        pollingInterval = setInterval(async () => {
+            attempts++;
+            if (attempts > maxAttempts) {
+                clearInterval(pollingInterval);
+                appendSystemError("The request timed out. The Oracle is taking too long to respond.");
+                setUIWaiting(false);
+                return;
+            }
+
+            try {
+                const response = await fetch(`{{ url_for('api_oracle_chat_status', job_id='') }}${jobId}`);
+                const data = await response.json();
+
+                if (data.status === 'complete') {
+                    clearInterval(pollingInterval);
+                    appendMessage('The Oracle', data.reply);
+                    chatHistory.push({ role: 'model', parts: [{ text: data.reply }] });
+                    setUIWaiting(false);
+                } else if (data.status === 'error') {
+                    clearInterval(pollingInterval);
+                    appendSystemError(`The Oracle encountered an error: ${data.reply}`);
+                    setUIWaiting(false);
+                }
+                // If status is 'pending', do nothing and wait for the next interval.
+
+            } catch (error) {
+                clearInterval(pollingInterval);
+                console.error('Error during polling:', error);
+                appendSystemError('Could not get a response due to a connection issue.');
+                setUIWaiting(false);
+            }
+        }, 2000); // Poll every 2 seconds
     }
 
     chatForm.addEventListener('submit', async function(event) {
@@ -176,59 +198,40 @@
         chatHistory.push({ role: 'user', parts: [{ text: userText }] });
         userMessageInput.value = '';
         
-        sendButton.disabled = true;
-        sendButtonText.classList.add('hidden');
-        loadingSpinner.classList.remove('hidden');
+        setUIWaiting(true);
 
         try {
-            const response = await fetch("{{ url_for('api_oracle_chat_query') }}", { //
+            // Step 1: Start the job
+            const startResponse = await fetch("{{ url_for('api_oracle_chat_start') }}", {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     message: userText, 
-                    history: historyForApi // Send history *before* current user message
+                    history: historyForApi
                 })
             });
 
-            sendButton.disabled = false;
-            sendButtonText.classList.remove('hidden');
-            loadingSpinner.classList.add('hidden');
-            userMessageInput.focus();
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({error: "Failed to parse error response."}));
-                throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
+            if (!startResponse.ok) {
+                 const errorData = await startResponse.json().catch(() => ({error: "Failed to parse error response."}));
+                 throw new Error(errorData.error || `Failed to start job. Status: ${startResponse.status}`);
             }
 
-            const data = await response.json();
-            appendMessage('The Oracle', data.reply); // This will now be rendered as Markdown
-            chatHistory.push({ role: 'model', parts: [{ text: data.reply }] }); // Add LLM response to local history
+            const startData = await startResponse.json();
+            const { job_id } = startData;
+
+            // Step 2: Poll for the result
+            if (job_id) {
+                pollForResult(job_id);
+            } else {
+                throw new Error("Did not receive a valid job ID from the server.");
+            }
 
         } catch (error) {
             console.error('Error sending message:', error);
-            // Display system error messages
-            const errorText = 'Error: Could not get a response. ' + error.message;
-            
-            const messageDiv = document.createElement('div');
-            messageDiv.classList.add('p-3', 'rounded-lg', 'max-w-xl', 'text-sm', 'shadow', 'break-words', 'bg-red-100', 'text-red-800', 'self-start');
-            const senderP = document.createElement('p');
-            senderP.classList.add('font-semibold', 'mb-1');
-            senderP.textContent = 'System';
-            const messageP = document.createElement('p');
-            messageP.textContent = errorText;
-            messageDiv.appendChild(senderP);
-            messageDiv.appendChild(messageP);
-            chatMessagesDiv.appendChild(messageDiv);
-            chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+            appendSystemError('Could not start the query. ' + error.message);
+            setUIWaiting(false);
         }
     });
 
-    // If you've loaded specific languages for highlight.js and it doesn't auto-initialize,
-    // you might need this, but usually, highlightElement is sufficient for dynamic content.
-    // document.addEventListener('DOMContentLoaded', (event) => {
-    //   hljs.highlightAll();
-    // });
 </script>
 {% endblock %}

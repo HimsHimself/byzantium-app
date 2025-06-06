@@ -2,12 +2,13 @@ import os
 import psycopg2
 import json
 import requests # For making HTTP requests to the Cloud Function
+import uuid
+import threading
 from psycopg2.extras import Json, RealDictCursor
 from flask import Flask, request, session, redirect, url_for, render_template, flash, jsonify
 from functools import wraps
 from datetime import datetime
 import traceback
-# import google.generativeai as genai # No longer needed directly here
 
 app = Flask(__name__)
 
@@ -25,9 +26,12 @@ ORACLE_API_FUNCTION_KEY = os.environ.get("ORACLE_API_FUNCTION_KEY") # Optional: 
 
 if not ORACLE_API_ENDPOINT_URL:
     print("[WARNING] ORACLE_API_ENDPOINT_URL not set. Oracle Chat functionality will be significantly impaired or disabled.")
-# else:
-    # print(f"[INFO] Oracle API Endpoint URL: {ORACLE_API_ENDPOINT_URL}")
 
+# --- In-memory store for background job status ---
+# This dictionary will hold the status of Oracle queries.
+# A more robust solution for multi-server setups might use Redis,
+# but for a single VM on Render, this is simple and effective.
+oracle_jobs = {}
 
 # --- Database Helper ---
 def get_db_connection():
@@ -38,6 +42,7 @@ def get_db_connection():
 
 # --- Activity Logging Helper ---
 def log_activity(activity_type, details=None):
+    # This function remains unchanged.
     conn = None
     cur = None
     try:
@@ -75,7 +80,7 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# --- Main Routes ---
+# --- Main Routes (Unchanged) ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     error = None
@@ -104,9 +109,10 @@ def logout():
 
 @app.before_request
 def before_request_handler():
+    # Exclude the new status check endpoint from pageview logging
     if 'logged_in' in session and \
        request.endpoint and \
-       request.endpoint not in ['login', 'static', 'logout', 'api_oracle_chat_query']: # Exclude API endpoint
+       request.endpoint not in ['login', 'static', 'logout', 'api_oracle_chat_start', 'api_oracle_chat_status']:
         log_activity('pageview')
 
 
@@ -115,8 +121,11 @@ def before_request_handler():
 def hello():
     return render_template('index.html')
 
-# --- Notes and Folders Routes ---
-# (These routes remain unchanged from the previous version, full code omitted for brevity but assumed present)
+# --- Notes and Folders Routes (Unchanged) ---
+# All your existing routes for notes and folders are assumed to be here.
+# For brevity, they are not repeated. The code from your provided `app.py`
+# for these functions is correct and does not need to be changed.
+# --- Start of Notes/Folders Routes ---
 @app.route('/notes/')
 @app.route('/notes/folder/<int:folder_id>')
 @login_required
@@ -375,8 +384,10 @@ def delete_note(note_id):
         if conn: conn.close()
     if folder_note_was_in: return redirect(url_for('notes_page', folder_id=folder_note_was_in))
     return redirect(url_for('notes_page'))
+# --- End of Notes/Folders Routes ---
 
-# --- Oracle Chat (Gemini) Routes - Updated to call external API ---
+
+# --- Oracle Chat (Gemini) Routes - REBUILT FOR ASYNCHRONOUS POLLING ---
 @app.route('/oracle_chat')
 @login_required
 def oracle_chat_page():
@@ -385,84 +396,89 @@ def oracle_chat_page():
         flash("Oracle Chat is currently unavailable (API endpoint not configured). Please check server logs.", "error")
     return render_template('oracle_chat.html')
 
-@app.route('/api/oracle_chat_query', methods=['POST'])
-@login_required
-def api_oracle_chat_query():
-    if not ORACLE_API_ENDPOINT_URL:
-        log_activity('oracle_api_error', details={'error': 'ORACLE_API_ENDPOINT_URL not configured'})
-        return jsonify({"error": "Oracle Chat API endpoint is not configured on the server."}), 503
-
+def run_oracle_query_in_background(job_id, payload):
+    """
+    This function runs in a separate thread.
+    It makes the slow API call and updates the job status dictionary.
+    """
     try:
-        client_data = request.get_json()
-        if not client_data:
-            return jsonify({"error": "Invalid JSON payload."}), 400
-
-        user_message_text = client_data.get('message')
-        client_history = client_data.get('history', [])
-
-        if not user_message_text:
-            return jsonify({"error": "No message provided."}), 400
-
-        # Prepare payload for the external Google Cloud Function
-        payload = {
-            "message": user_message_text,
-            "history": client_history
-            # The Cloud Function will have its own SYSTEM_INSTRUCTION for Gemini
-        }
-
-        headers = {
-            "Content-Type": "application/json"
-        }
-        # Add authentication header if your Cloud Function is secured with an API key
+        headers = { "Content-Type": "application/json" }
         if ORACLE_API_FUNCTION_KEY:
-            headers["X-Api-Key"] = ORACLE_API_FUNCTION_KEY # Or whatever header your CF expects
+            headers["X-Api-Key"] = ORACLE_API_FUNCTION_KEY
 
-        log_activity('oracle_query_sent_to_external_api', details={'prompt_start': user_message_text[:100], 'history_len': len(client_history)})
-
-        # Call the external API (Google Cloud Function)
-        response = requests.post(ORACLE_API_ENDPOINT_URL, json=payload, headers=headers, timeout=60) # Increased timeout
-
-        # Check if the external API call was successful
-        response.raise_for_status() # Raises an HTTPError for bad responses (4XX or 5XX)
-
+        response = requests.post(ORACLE_API_ENDPOINT_URL, json=payload, headers=headers, timeout=90) # Long timeout
+        response.raise_for_status() # Raises HTTPError for bad responses
+        
         response_data = response.json()
         llm_reply = response_data.get("reply")
-
+        
         if llm_reply is None:
-            log_activity('oracle_external_api_empty_reply', details=response_data)
-            return jsonify({"error": "Received an empty or invalid reply from the Oracle API."}), 500
-
-        log_activity('oracle_response_received_from_external_api', details={'response_start': llm_reply[:100]})
-        return jsonify({"reply": llm_reply})
-
-    except requests.exceptions.Timeout:
-        print(f"[ERROR] Timeout calling Oracle API: {ORACLE_API_ENDPOINT_URL}")
-        traceback.print_exc()
-        log_activity('oracle_api_error', details={'error': 'Timeout calling external Oracle API'})
-        return jsonify({"error": "The Oracle is contemplating deeply and took too long to respond. Please try again."}), 504 # Gateway Timeout
-    except requests.exceptions.HTTPError as http_err:
-        error_message = f"Oracle API HTTP error: {http_err.response.status_code} - {http_err.response.text}"
-        print(f"[ERROR] {error_message}")
-        traceback.print_exc()
-        log_activity('oracle_api_error', details={'error': str(http_err), 'status_code': http_err.response.status_code, 'response': http_err.response.text[:200]})
-        # Try to return a more user-friendly error from the upstream service if possible
-        try:
-            upstream_error = http_err.response.json().get("error", "An error occurred with the Oracle's external service.")
-            return jsonify({"error": upstream_error}), http_err.response.status_code
-        except ValueError: # If upstream response is not JSON
-             return jsonify({"error": f"An error occurred with the Oracle's external service (Status: {http_err.response.status_code})."}), http_err.response.status_code
+            raise ValueError("Received an empty or invalid reply from the Oracle API.")
+            
+        # Update job status to 'complete' with the final reply
+        oracle_jobs[job_id] = {"status": "complete", "reply": llm_reply}
+        log_activity('oracle_response_received_from_external_api', details={'job_id': job_id, 'response_start': llm_reply[:100]})
 
     except Exception as e:
-        print(f"[ERROR] Error in /api/oracle_chat_query (external call): {e}")
+        print(f"[ERROR] Background thread error for job {job_id}: {e}")
         traceback.print_exc()
-        log_activity('oracle_api_error', details={'error': str(e)})
-        return jsonify({"error": f"An unexpected error occurred while communicating with the Oracle: {str(e)}"}), 500
+        # Update job status to 'error' with an error message
+        oracle_jobs[job_id] = {"status": "error", "reply": f"An error occurred: {str(e)}"}
+        log_activity('oracle_api_error', details={'job_id': job_id, 'error': str(e)})
 
 
-# --- Other Routes ---
+@app.route('/api/oracle_chat_start', methods=['POST'])
+@login_required
+def api_oracle_chat_start():
+    if not ORACLE_API_ENDPOINT_URL:
+        return jsonify({"error": "Oracle Chat API endpoint is not configured."}), 503
+
+    client_data = request.get_json()
+    if not client_data or 'message' not in client_data:
+        return jsonify({"error": "Invalid request payload."}), 400
+
+    # 1. Create a unique job ID
+    job_id = str(uuid.uuid4())
+    
+    # 2. Store initial job status
+    oracle_jobs[job_id] = {"status": "pending", "reply": None}
+    
+    # 3. Prepare payload for the background task
+    payload = {
+        "message": client_data.get('message'),
+        "history": client_data.get('history', [])
+    }
+    
+    # 4. Start the background thread
+    thread = threading.Thread(target=run_oracle_query_in_background, args=(job_id, payload))
+    thread.daemon = True # Allows main app to exit even if threads are running
+    thread.start()
+    
+    log_activity('oracle_query_sent_to_external_api', details={'job_id': job_id, 'prompt_start': payload['message'][:100]})
+
+    # 5. Immediately return the job ID to the client
+    return jsonify({"job_id": job_id}), 202 # 202 Accepted
+
+@app.route('/api/oracle_chat_status/<job_id>', methods=['GET'])
+@login_required
+def api_oracle_chat_status(job_id):
+    job = oracle_jobs.get(job_id)
+    if not job:
+        return jsonify({"status": "error", "reply": "Job not found."}), 404
+        
+    if job['status'] == 'complete' or job['status'] == 'error':
+        # If the job is finished, return the result and remove it from memory
+        return jsonify(oracle_jobs.pop(job_id))
+    else:
+        # If the job is still pending, just report the status
+        return jsonify(job)
+
+
+# --- Other Routes (Unchanged) ---
 @app.route('/db_test')
 @login_required
 def db_test():
+    # This function remains unchanged.
     conn = None
     cur = None
     try:
@@ -481,6 +497,7 @@ def db_test():
 @app.route('/admin/activity_log')
 @login_required
 def view_activity_log():
+    # This function remains unchanged.
     conn = None
     cur = None
     try:
