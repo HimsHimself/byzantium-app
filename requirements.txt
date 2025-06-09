@@ -20,6 +20,7 @@ pyasn1_modules==0.4.2
 pydantic==2.11.5
 pydantic_core==2.33.2
 pyparsing==3.2.3
+pytz==2025.2
 requests==2.32.3
 rsa==4.9.1
 tqdm==4.67.1
