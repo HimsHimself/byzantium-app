@@ -39,15 +39,6 @@ try:
     cur.execute(create_folders_script)
     print("Table 'folders' created successfully.")
 
-    # Drop the old notes table if it exists with a different foreign key constraint
-    # This is only necessary if you might have run an older version of create_tables.py
-    # that didn't have ON DELETE CASCADE for notes.folder_id.
-    # For a fresh setup, this isn't strictly needed but is safe.
-    # Be cautious with DROP TABLE in a real production environment with data.
-    # cur.execute("DROP TABLE IF EXISTS notes CASCADE;") 
-    # print("Dropped existing 'notes' table if it existed to re-create with CASCADE.")
-
-
     create_notes_script = """
     CREATE TABLE IF NOT EXISTS notes (
         id SERIAL PRIMARY KEY,
@@ -62,6 +53,22 @@ try:
     """
     cur.execute(create_notes_script)
     print("Table 'notes' created successfully.")
+
+    # New table for food logging
+    create_food_log_script = """
+    CREATE TABLE IF NOT EXISTS food_log (
+        id SERIAL PRIMARY KEY,
+        log_type VARCHAR(50) NOT NULL,
+        description VARCHAR(255) NOT NULL,
+        calories INTEGER,
+        log_time TIMESTAMPTZ NOT NULL,
+        user_id INTEGER NOT NULL DEFAULT 1,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    """
+    cur.execute(create_food_log_script)
+    print("Table 'food_log' created successfully.")
+
 
     conn.commit()
     cur.close()

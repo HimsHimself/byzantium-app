@@ -380,6 +380,74 @@ def delete_note(note_id):
         return redirect(url_for('notes_page', folder_id=folder_note_was_in))
     return redirect(url_for('notes_page'))
 
+# --- Food Log Routes ---
+@app.route('/food_log', methods=['GET', 'POST'])
+@login_required
+def food_log_page():
+    if request.method == 'POST':
+        log_type = request.form.get('log_type')
+        description = request.form.get('description', '').strip()
+        calories_str = request.form.get('calories')
+        log_time_str = request.form.get('log_time')
+
+        errors = []
+        if not log_type:
+            errors.append("Please select a log type.")
+        if not description:
+            errors.append("Description cannot be empty.")
+        if not log_time_str:
+            errors.append("Please provide a date and time.")
+        
+        calories = int(calories_str) if calories_str and calories_str.isdigit() else None
+        
+        try:
+            log_time_dt = datetime.fromisoformat(log_time_str)
+        except (ValueError, TypeError):
+            errors.append("Invalid date and time format.")
+            log_time_dt = None
+
+        if errors:
+            for error in errors:
+                flash(error, 'error')
+        else:
+            try:
+                conn = get_db()
+                with conn.cursor() as cur:
+                    sql = """
+                        INSERT INTO food_log (log_type, description, calories, log_time, user_id, created_at)
+                        VALUES (%s, %s, %s, %s, 1, NOW())
+                    """
+                    cur.execute(sql, (log_type, description, calories, log_time_dt))
+                conn.commit()
+                flash('Food log saved successfully!', 'success')
+                log_activity('food_logged', details={
+                    'log_type': log_type,
+                    'description': description,
+                    'calories': calories
+                })
+                return redirect(url_for('food_log_page'))
+            except Exception as e:
+                conn.rollback()
+                log_activity('food_log_error', details={'error': str(e)})
+                flash(f"Error saving to database: {e}", 'error')
+
+    default_datetime = datetime.now().strftime('%Y-%m-%dT%H:%M')
+    return render_template('food_log.html', default_datetime=default_datetime)
+
+@app.route('/food_log/view')
+@login_required
+def view_food_log():
+    try:
+        conn = get_db()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT * FROM food_log WHERE user_id = 1 ORDER BY log_time DESC")
+            logs = cur.fetchall()
+        return render_template('view_food_log.html', logs=logs)
+    except Exception as e:
+        log_activity('error', details={"function": "view_food_log", "error": str(e)})
+        flash("Error fetching food log history.", "error")
+        return redirect(url_for('food_log_page'))
+
 # --- Oracle Chat (Gemini) Routes ---
 @app.route('/oracle_chat')
 @login_required

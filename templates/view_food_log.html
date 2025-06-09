@@ -1,0 +1,45 @@
+{% extends "index.html" %}
+
+{% block content %}
+<div class="content-card rounded-lg p-6 md:p-8">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-semibold text-slate-800">
+            Food Log History
+        </h2>
+        <a href="{{ url_for('food_log_page') }}" class="btn-primary text-sm font-semibold px-4 py-2 rounded-md transition-colors duration-300">
+            &larr; Back to Logging
+        </a>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left text-slate-500">
+            <thead class="text-xs text-slate-700 uppercase bg-slate-100">
+                <tr>
+                    <th scope="col" class="px-6 py-3">Date & Time</th>
+                    <th scope="col" class="px-6 py-3">Type</th>
+                    <th scope="col" class="px-6 py-3">Description</th>
+                    <th scope="col" class="px-6 py-3">Calories</th>
+                    <th scope="col" class="px-6 py-3">Logged On</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if logs %}
+                    {% for log in logs %}
+                    <tr class="bg-white border-b hover:bg-slate-50">
+                        <td class="px-6 py-4 font-medium text-slate-900 whitespace-nowrap">{{ log.log_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td class="px-6 py-4">{{ log.log_type }}</td>
+                        <td class="px-6 py-4">{{ log.description }}</td>
+                        <td class="px-6 py-4">{{ log.calories if log.calories is not none else 'N/A' }}</td>
+                        <td class="px-6 py-4 text-slate-400">{{ log.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr class="bg-white border-b">
+                        <td colspan="5" class="px-6 py-4 text-center text-slate-500 italic">No food logs found.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
