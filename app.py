@@ -8,8 +8,12 @@ import pytz
 from psycopg2.extras import Json, RealDictCursor
 from flask import Flask, request, session, redirect, url_for, render_template, flash, jsonify, g
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, timedelta
 import traceback
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import numpy as np
 
 app = Flask(__name__)
 
@@ -445,10 +449,63 @@ def food_log_page():
 def view_food_log():
     try:
         conn = get_db()
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT * FROM food_log WHERE user_id = 1 ORDER BY log_time DESC")
+            cur.execute("SELECT * FROM food_log WHERE user_id = 1 AND log_time >= %s ORDER BY log_time DESC", (thirty_days_ago,))
             logs = cur.fetchall()
-        return render_template('view_food_log.html', logs=logs)
+
+        # Generate the plot
+        if logs:
+            df = pd.DataFrame(logs)
+            df['date'] = pd.to_datetime(df['log_time']).dt.date
+            daily_calories = df.groupby('date')['calories'].sum().reset_index()
+            
+            today = datetime.now().date()
+            date_range = pd.date_range(start=today - timedelta(days=29), end=today, freq='D').to_frame(index=False, name='date')
+            date_range['date'] = date_range['date'].dt.date
+            daily_calories = pd.merge(date_range, daily_calories, on='date', how='left').fillna(0)
+            daily_calories = daily_calories.sort_values(by='date', ascending=True)
+
+            plt.style.use('seaborn-v0_8-whitegrid')
+            fig, ax = plt.subplots(figsize=(12, 6))
+
+            bar_color = '#4B0082'
+            line_color = '#C59B08'
+            bg_color = '#FDFDF6'
+            text_color = '#2d3748'
+            grid_color = '#e2e8f0'
+
+            fig.patch.set_facecolor(bg_color)
+            ax.set_facecolor(bg_color)
+            ax.bar(daily_calories['date'], daily_calories['calories'], color=bar_color, width=0.6, label='Total Daily Calories')
+            ax.axhline(y=2000, color=line_color, linestyle='--', linewidth=2, label='2000 Calorie Target')
+            ax.set_title('Total Daily Calories for the Last 30 Days', fontsize=16, fontweight='bold', color=text_color, pad=20)
+            ax.set_xlabel('Date', fontsize=12, color=text_color, labelpad=10)
+            ax.set_ylabel('Total Calories', fontsize=12, color=text_color, labelpad=10)
+            ax.tick_params(axis='x', colors=text_color, rotation=45)
+            ax.tick_params(axis='y', colors=text_color)
+            ax.grid(color=grid_color)
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+            ax.xaxis.set_major_locator(mdates.DayLocator(interval=3))
+            plt.setp(ax.get_xticklabels(), ha="right")
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['left'].set_color(grid_color)
+            ax.spines['bottom'].set_color(grid_color)
+            ax.legend(frameon=False, loc='upper left', bbox_to_anchor=(0, 1.1))
+            plt.tight_layout()
+            
+            plot_path = os.path.join('static', 'calories_chart.png')
+            if not os.path.exists('static'):
+                os.makedirs('static')
+            plt.savefig(plot_path)
+            chart_url = url_for('static', filename='calories_chart.png')
+        else:
+            chart_url = None
+
+        return render_template('view_food_log.html', logs=logs, chart_url=chart_url)
+
     except Exception as e:
         log_activity('error', details={"function": "view_food_log", "error": str(e)})
         flash("Error fetching food log history.", "error")

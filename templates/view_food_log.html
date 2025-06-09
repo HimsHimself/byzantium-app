@@ -11,6 +11,12 @@
         </a>
     </div>
 
+    {% if chart_url %}
+    <div class="mb-8">
+        <img src="{{ chart_url }}?v={{ range(1, 1000) | random }}" alt="Calories Chart" class="w-full h-auto rounded-lg shadow-md">
+    </div>
+    {% endif %}
+
     <div class="overflow-x-auto">
         <table class="w-full text-sm text-left text-slate-500">
             <thead class="text-xs text-slate-700 uppercase bg-slate-100">
