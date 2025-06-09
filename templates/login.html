@@ -7,40 +7,53 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --imperial-purple: #4B0082;
+            --byzantine-gold: #C59B08;
+            --byzantine-ivory: #FDFDF6;
+            --byzantine-slate: #2d3748;
+        }
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f8fafc; /* bg-slate-50 */
-            color: #334155; /* text-slate-700 */
+            background-color: var(--byzantine-slate); /* Dark background for drama */
+            /* Using the same subtle pattern but inverted */
+            background-image: url("data:image/svg+xml,%3Csvg width='28' height='28' viewBox='0 0 28 28' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%234a5568' fill-opacity='0.2' fill-rule='evenodd'%3E%3Cpath d='M0 0h28v1H0zM14 2v26h1V2z'/%3E%3C/g%3E%3C/svg%3E");
         }
         .login-card {
-            background-color: #ffffff; /* bg-white */
-            border: 1px solid #e2e8f0; /* border-slate-300 */
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
         }
         .btn-primary {
-            background-color: #4B0082; /* Imperial Purple */
+            background-image: linear-gradient(to top right, var(--imperial-purple), #6d28d9);
             color: #ffffff;
+            font-weight: 500;
+            box-shadow: 0 1px 3px 0 rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.1);
+            transition: all 0.3s ease;
         }
         .btn-primary:hover {
-            background-color: #3A006A; /* Darker Imperial Purple */
+            box-shadow: 0 4px 12px 0 rgba(75, 0, 130, 0.3);
+            transform: translateY(-2px);
         }
         .form-input {
-            background-color: #f1f5f9; /* bg-slate-100 */
-            border-color: #cbd5e1; /* border-slate-300 */
-            color: #334155; /* text-slate-700 */
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            color: var(--byzantine-slate);
+            transition: all 0.2s ease-in-out;
         }
         .form-input:focus {
-            border-color: #4B0082; /* Imperial Purple */
-            ring-color: #4B0082;
+            border-color: var(--imperial-purple);
+            box-shadow: 0 0 0 2px rgba(75, 0, 130, 0.2);
+            outline: none;
         }
         .byzantine-gold {
-            color: #DAA520; /* Ochre/Gold */
+            color: var(--byzantine-gold);
         }
     </style>
 </head>
-<body class="flex items-center justify-center min-h-screen">
+<body class="flex items-center justify-center min-h-screen p-4">
     <div class="login-card p-8 md:p-12 rounded-xl shadow-2xl w-full max-w-md">
-        <h1 class="text-3xl font-bold text-slate-800 text-center mb-2">
-            Byzantium <span class="byzantine-gold text-2xl">&dagger;</span>
+        <h1 class="text-4xl font-bold text-slate-800 text-center mb-2">
+            Byzantium <span class="byzantine-gold text-5xl align-middle">&dagger;</span>
         </h1>
         <p class="text-center text-slate-500 mb-8">Access Your Personal Archive</p>
 
@@ -53,9 +66,9 @@
         <form method="POST" action="{{ url_for('login') }}">
             <div class="mb-6">
                 <label for="password" class="block mb-2 text-sm font-medium text-slate-600">Password</label>
-                <input type="password" name="password" id="password" class="form-input block w-full p-3 rounded-md focus:ring-1 focus:outline-none" required>
+                <input type="password" name="password" id="password" class="form-input block w-full p-3 rounded-md" required>
             </div>
-            <button type="submit" class="btn-primary w-full font-semibold py-3 px-4 rounded-md transition-colors duration-300">Unlock</button>
+            <button type="submit" class="btn-primary w-full font-semibold py-3 px-4 rounded-md">Unlock</button>
         </form>
     </div>
 </body>

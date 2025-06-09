@@ -1,7 +1,7 @@
 {% extends "index.html" %}
 
 {% block content %}
-<div class="content-card rounded-lg p-6 md:p-8">
+<div class="content-card p-6 md:p-8">
     <div class="flex justify-between items-center mb-2">
         <h2 class="text-2xl font-semibold text-slate-800">
             {% if current_folder %}
@@ -65,9 +65,9 @@
                     <input type="hidden" name="parent_folder_id" value="{{ current_folder.id if current_folder else '' }}">
                     <div class="flex">
                         <input type="text" name="folder_name" placeholder="New Folder Name" required
-                               class="form-input flex-grow p-2 text-sm rounded-l-md focus:ring-1 focus:outline-none">
+                               class="form-input flex-grow p-2 text-sm rounded-l-md">
                         <button type="submit"
-                                class="btn-primary text-sm font-semibold px-3 py-2 rounded-r-md transition-colors duration-300">
+                                class="btn-primary text-sm px-3 py-2 rounded-r-md">
                             Add
                         </button>
                     </div>
@@ -81,9 +81,9 @@
                     <label for="new_folder_name_{{current_folder.id}}" class="text-xs text-slate-500 block mb-1">Rename '{{current_folder.name}}'</label>
                     <div class="flex">
                         <input type="text" id="new_folder_name_{{current_folder.id}}" name="new_folder_name" value="{{ current_folder.name }}" required
-                               class="form-input flex-grow p-2 text-sm rounded-l-md focus:ring-1 focus:outline-none">
+                               class="form-input flex-grow p-2 text-sm rounded-l-md">
                         <button type="submit"
-                                class="btn-primary text-sm font-semibold px-3 py-2 rounded-r-md transition-colors duration-300">
+                                class="btn-primary text-sm px-3 py-2 rounded-r-md">
                             Rename
                         </button>
                     </div>
@@ -132,9 +132,9 @@
                 <form method="POST" action="{{ url_for('add_note', folder_id=current_folder.id) }}" class="mt-4">
                     <div class="flex">
                         <input type="text" name="note_title" placeholder="New Note Title" required
-                               class="form-input flex-grow p-2 text-sm rounded-l-md focus:ring-1 focus:outline-none">
+                               class="form-input flex-grow p-2 text-sm rounded-l-md">
                         <button type="submit"
-                                class="btn-primary text-sm font-semibold px-3 py-2 rounded-r-md transition-colors duration-300">
+                                class="btn-primary text-sm px-3 py-2 rounded-r-md">
                             Add Note
                         </button>
                     </div>
@@ -143,22 +143,22 @@
             </div>
 
             {% if current_note %}
-            <div class="p-4 border border-slate-200 rounded-md bg-white shadow-sm">
+            <div class="p-4 border border-slate-200 rounded-lg bg-white shadow-sm">
                 <form method="POST" action="{{ url_for('rename_note', note_id=current_note.id) }}" class="mb-4">
                     <label for="new_note_title_{{current_note.id}}" class="text-xs text-slate-500 block mb-1">Rename Note</label>
                     <div class="flex items-center">
                          <input type="text" id="new_note_title_{{current_note.id}}" name="new_note_title" value="{{ current_note.title }}" required
-                               class="form-input flex-grow p-2 text-lg font-medium rounded-l-md focus:ring-1 focus:outline-none text-slate-700">
+                               class="form-input flex-grow p-2 text-lg font-medium rounded-l-md text-slate-700">
                         <button type="submit"
-                                class="btn-primary text-sm font-semibold px-3 py-2 rounded-r-md transition-colors duration-300">
+                                class="btn-primary text-sm px-3 py-2 rounded-r-md">
                             Rename
                         </button>
                     </div>
                 </form>
                  <form method="POST" action="{{ url_for('update_note', note_id=current_note.id) }}">
                     <textarea name="note_content" rows="15"
-                              class="w-full p-3 border border-slate-300 rounded-md bg-white focus:ring-1 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm"
-                              style="color: #334155; background-color: #f8fafc;">{{ current_note.content if current_note.content is not none else '' }}</textarea>
+                              class="w-full p-3 form-input rounded-md text-sm"
+                              style="color: #334155;">{{ current_note.content if current_note.content is not none else '' }}</textarea>
                     <div class="mt-4 flex justify-between items-center">
                          <form method="POST" action="{{ url_for('delete_note', note_id=current_note.id) }}" class="inline">
                              <button type="submit" onclick="return confirm('Are you sure you want to delete this note?');"
@@ -169,7 +169,7 @@
                         <div>
                             <a href="{{ url_for('notes_page', folder_id=current_note.folder_id if current_note.folder_id else None) }}" class="text-slate-600 hover:text-slate-800 px-4 py-2 rounded-md text-sm">Cancel</a>
                             <button type="submit"
-                                    class="btn-primary text-sm font-semibold px-4 py-2 rounded-md transition-colors duration-300">
+                                    class="btn-primary text-sm px-4 py-2 rounded-md">
                                 Save Changes
                             </button>
                         </div>
