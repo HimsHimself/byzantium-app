@@ -4,6 +4,7 @@ import json
 import requests # For making HTTP requests to the Cloud Function
 import uuid
 import threading
+import pytz
 from psycopg2.extras import Json, RealDictCursor
 from flask import Flask, request, session, redirect, url_for, render_template, flash, jsonify, g
 from functools import wraps
@@ -397,9 +398,9 @@ def food_log_page():
             errors.append("Description cannot be empty.")
         if not log_time_str:
             errors.append("Please provide a date and time.")
-        
+
         calories = int(calories_str) if calories_str and calories_str.isdigit() else None
-        
+
         try:
             log_time_dt = datetime.fromisoformat(log_time_str)
         except (ValueError, TypeError):
@@ -431,7 +432,12 @@ def food_log_page():
                 log_activity('food_log_error', details={'error': str(e)})
                 flash(f"Error saving to database: {e}", 'error')
 
-    default_datetime = datetime.now().strftime('%Y-%m-%dT%H:%M')
+    # --- FIX: Calculate current time in London timezone ---
+    london_tz = pytz.timezone("Europe/London")
+    now_in_london = datetime.now(london_tz)
+    default_datetime = now_in_london.strftime('%Y-%m-%dT%H:%M')
+    # --- END FIX ---
+
     return render_template('food_log.html', default_datetime=default_datetime)
 
 @app.route('/food_log/view')
