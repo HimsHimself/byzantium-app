@@ -569,40 +569,47 @@ def view_activity_log():
             '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Activity Log</title>',
             '<script src="https://cdn.tailwindcss.com"></script>',
             '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">',
+            # MODIFIED: Removed padding, th bg-color, and tr:nth-child bg-color to use Tailwind classes instead.
             "<style> body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #334155; padding: 20px; }",
             "table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9em; }",
-            "th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; vertical-align: top; word-break: break-word; }",
-            "th { background-color: #e2e8f0; color: #4B0082; } tr:nth-child(even) { background-color: #f1f5f9; }",
+            "th, td { border: 1px solid #cbd5e1; text-align: left; vertical-align: top; word-break: break-word; }",
+            "th { color: #4B0082; }", # Keep custom header text color
             "a { color: #4B0082; text-decoration: none; } a:hover { text-decoration: underline; }",
             ".details-json { max-width: 400px; max-height: 200px; overflow: auto; white-space: pre-wrap; background-color: #eef2ff; padding: 5px; border-radius: 4px; font-family: monospace; font-size: 0.8em;}</style>",
             '</head><body>',
             f'<h1 class="text-2xl font-semibold mb-4" style="color: #4B0082;">Activity Log <span style="color: #DAA520;">&dagger;</span> (Last 100)</h1>',
-            f'<p><a href="{dashboard_url}">Back to Dashboard</a></p><table>'
+            # MODIFIED: Added Tailwind classes to table
+            f'<p><a href="{dashboard_url}">Back to Dashboard</a></p><div class="overflow-x-auto"><table class="w-full text-sm text-left text-slate-500">'
         ]
 
         if activities:
             colnames = list(activities[0].keys())
-            html_parts.append('<thead><tr>')
+            # MODIFIED: Added Tailwind classes to thead > tr
+            html_parts.append('<thead class="text-xs text-slate-700 uppercase bg-slate-100"><tr>')
             for name in colnames:
-                html_parts.append(f"<th>{name.replace('_', ' ').title()}</th>")
+                # MODIFIED: Added Tailwind classes to th
+                html_parts.append(f"<th scope=\"col\" class=\"px-6 py-3\">{name.replace('_', ' ').title()}</th>")
             html_parts.append('</tr></thead><tbody>')
 
             for activity in activities:
-                html_parts.append('<tr>')
+                # MODIFIED: Added Tailwind classes to tr
+                html_parts.append('<tr class="bg-white border-b hover:bg-slate-50">')
                 for col_name in colnames:
                     value = activity.get(col_name)
+                    # MODIFIED: Added Tailwind classes to td
                     if col_name == 'details' and value is not None:
                         details_json = json.dumps(value, indent=2)
-                        html_parts.append(f"<td><pre class='details-json'>{details_json}</pre></td>")
+                        html_parts.append(f"<td class=\"px-6 py-2\"><pre class='details-json'>{details_json}</pre></td>")
                     else:
-                        html_parts.append(f"<td>{str(value) if value is not None else ''}</td>")
+                        html_parts.append(f"<td class=\"px-6 py-2\">{str(value) if value is not None else ''}</td>")
                 html_parts.append('</tr>')
             html_parts.append("</tbody>")
         else:
-            html_parts.append("<thead><tr><th>Info</th></tr></thead>")
-            html_parts.append("<tbody><tr><td>No activities found.</td></tr></tbody>")
+            html_parts.append("<thead class=\"text-xs text-slate-700 uppercase bg-slate-100\"><tr><th>Info</th></tr></thead>")
+            # MODIFIED: Added Tailwind classes to td
+            html_parts.append("<tbody><tr><td colspan=\"1\" class=\"px-6 py-4 text-center text-slate-500 italic\">No activities found.</td></tr></tbody>")
             
-        html_parts.append('</table></body></html>')
+        html_parts.append('</table></div></body></html>') # MODIFIED: Added closing div for overflow-x-auto
         return "".join(html_parts)
     except Exception as e:
         log_activity('error', details={"function": "view_activity_log", "error": str(e)})
