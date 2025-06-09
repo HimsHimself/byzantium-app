@@ -19,23 +19,21 @@
                     <th scope="col" class="px-6 py-3">Type</th>
                     <th scope="col" class="px-6 py-3">Description</th>
                     <th scope="col" class="px-6 py-3">Calories</th>
-                    <th scope="col" class="px-6 py-3">Logged On</th>
                 </tr>
             </thead>
             <tbody>
                 {% if logs %}
                     {% for log in logs %}
                     <tr class="bg-white border-b hover:bg-slate-50">
-                        <td class="px-6 py-4 font-medium text-slate-900 whitespace-nowrap">{{ log.log_time.strftime('%Y-%m-%d %H:%M') }}</td>
-                        <td class="px-6 py-4">{{ log.log_type }}</td>
-                        <td class="px-6 py-4">{{ log.description }}</td>
-                        <td class="px-6 py-4">{{ log.calories if log.calories is not none else 'N/A' }}</td>
-                        <td class="px-6 py-4 text-slate-400">{{ log.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td class="px-6 py-2 font-medium text-slate-900 whitespace-nowrap">{{ log.log_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td class="px-6 py-2">{{ log.log_type }}</td>
+                        <td class="px-6 py-2">{{ log.description }}</td>
+                        <td class="px-6 py-2">{{ log.calories if log.calories is not none else 'N/A' }}</td>
                     </tr>
                     {% endfor %}
                 {% else %}
                     <tr class="bg-white border-b">
-                        <td colspan="5" class="px-6 py-4 text-center text-slate-500 italic">No food logs found.</td>
+                        <td colspan="4" class="px-6 py-4 text-center text-slate-500 italic">No food logs found.</td>
                     </tr>
                 {% endif %}
             </tbody>
