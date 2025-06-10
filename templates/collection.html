@@ -18,6 +18,7 @@
                     <th scope="col" class="px-6 py-3">Item Name</th>
                     <th scope="col" class="px-6 py-3">Item Type</th>
                     <th scope="col" class="px-6 py-3">Approx. Value</th>
+                    <th scope="col" class="px-6 py-3">Sellable</th>
                     <th scope="col" class="px-6 py-3">Date Added</th>
                 </tr>
             </thead>
@@ -28,12 +29,19 @@
                         <td class="px-6 py-4 font-medium text-slate-900 whitespace-nowrap">{{ item.name }}</td>
                         <td class="px-6 py-4">{{ item.item_type or 'N/A' }}</td>
                         <td class="px-6 py-4">{{ item.approximate_value or 'N/A' }}</td>
+                        <td class="px-6 py-4">
+                            {% if item.is_sellable %}
+                                <span class="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">Yes</span>
+                            {% else %}
+                                <span class="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700">No</span>
+                            {% endif %}
+                        </td>
                         <td class="px-6 py-4">{{ item.created_at.strftime('%d %b %Y') if item.created_at else 'N/A' }}</td>
                     </tr>
                     {% endfor %}
                 {% else %}
                     <tr class="bg-white border-b">
-                        <td colspan="4" class="px-6 py-4 text-center text-slate-500 italic">Your collection is empty. Use the 'Add New Item' button to start cataloging.</td>
+                        <td colspan="5" class="px-6 py-4 text-center text-slate-500 italic">Your collection is empty. Use the 'Add New Item' button to start cataloging.</td>
                     </tr>
                 {% endif %}
             </tbody>
