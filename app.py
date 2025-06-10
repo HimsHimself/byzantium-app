@@ -702,6 +702,19 @@ def collection_page():
         log_activity('error', details={"function": "collection_page", "error": str(e)})
         flash("Error fetching collection.", "error")
         return redirect(url_for('hello'))
+    
+@app.route('/collection/add', methods=['GET', 'POST'])
+@login_required
+def add_collection_item():
+    if request.method == 'POST':
+        # We will add the logic to handle the form submission,
+        # file upload to Google Cloud Storage, and DB insert here
+        # in the next step.
+        flash('Item added successfully! (Placeholder)', 'success')
+        return redirect(url_for('collection_page'))
+    
+    # For a GET request, just show the form
+    return render_template('add_item.html')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5167)), debug=False)
