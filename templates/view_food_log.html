@@ -11,6 +11,16 @@
         </a>
     </div>
 
+    {% if today_total is not none %}
+    <div class="p-4 bg-purple-50 border border-purple-200 rounded-lg text-center mb-8 shadow">
+        <h3 class="text-base font-medium text-slate-700 tracking-wide uppercase">Today's Total</h3>
+        <p class="text-4xl font-bold byzantine-purple-text mt-1">
+            {{ today_total }}
+            <span class="text-xl font-normal text-slate-500">/ 2000 kcal</span>
+        </p>
+    </div>
+    {% endif %}
+
     {% if chart_url %}
     <div class="mb-8">
         <img src="{{ chart_url }}?v={{ range(1, 1000) | random }}" alt="Calories Chart" class="w-full h-auto rounded-lg shadow-md">

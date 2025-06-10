@@ -449,12 +449,28 @@ def food_log_page():
 def view_food_log():
     try:
         conn = get_db()
+        london_tz = pytz.timezone("Europe/London")
+        today_london = datetime.now(london_tz).date()
         thirty_days_ago = datetime.now() - timedelta(days=30)
         
+        today_total_calories = 0 # Default value
+
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Get logs for the last 30 days for the main table view
             cur.execute("SELECT * FROM food_log WHERE user_id = 1 AND log_time >= %s ORDER BY log_time DESC", (thirty_days_ago,))
             logs = cur.fetchall()
 
+            # Calculate today's total calories, converting stored timestamps to the London timezone
+            sql_today_calories = """
+                SELECT SUM(calories) as total
+                FROM food_log
+                WHERE user_id = 1 AND DATE(log_time AT TIME ZONE 'Europe/London') = %s;
+            """
+            cur.execute(sql_today_calories, (today_london,))
+            result = cur.fetchone()
+            if result and result['total'] is not None:
+                today_total_calories = int(result['total'])
+        
         # Generate the plot
         if logs:
             df = pd.DataFrame(logs)
@@ -504,7 +520,7 @@ def view_food_log():
         else:
             chart_url = None
 
-        return render_template('view_food_log.html', logs=logs, chart_url=chart_url)
+        return render_template('view_food_log.html', logs=logs, chart_url=chart_url, today_total=today_total_calories)
 
     except Exception as e:
         log_activity('error', details={"function": "view_food_log", "error": str(e)})
