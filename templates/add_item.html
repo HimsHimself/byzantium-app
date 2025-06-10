@@ -31,7 +31,12 @@
 
             <div>
                 <label for="period" class="block mb-2 text-sm font-medium text-slate-600">Period</label>
-                <input type="text" name="period" id="period" class="form-input block w-full p-3 rounded-md" placeholder="e.g., WW1, Victorian">
+                <input type="text" name="period" id="period" list="period_suggestions" class="form-input block w-full p-3 rounded-md" placeholder="e.g., WW1, Victorian">
+                <datalist id="period_suggestions">
+                    {% for period in periods %}
+                        <option value="{{ period }}">
+                    {% endfor %}
+                </datalist>
             </div>
 
             <div class="md:col-span-2">

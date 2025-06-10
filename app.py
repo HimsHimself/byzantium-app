@@ -565,6 +565,25 @@ def collection_page():
         flash("Error fetching collection.", "error")
         return redirect(url_for('hello'))
 
+@app.route('/collection/item/<int:item_id>')
+@login_required
+def view_collection_item(item_id):
+    try:
+        conn = get_db()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT * FROM antiques WHERE id = %s AND user_id = 1", (item_id,))
+            item = cur.fetchone()
+        
+        if not item:
+            flash('Collection item not found.', 'error')
+            return redirect(url_for('collection_page'))
+
+        return render_template('view_item.html', item=item)
+    except Exception as e:
+        log_activity('error', details={"function": "view_collection_item", "error": str(e)})
+        flash("Error fetching item details.", "error")
+        return redirect(url_for('collection_page'))
+
 @app.route('/collection/add', methods=['GET', 'POST'])
 @login_required
 def add_collection_item():
@@ -625,14 +644,17 @@ def add_collection_item():
     # --- GET Request Logic ---
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT item_type FROM antiques WHERE item_type IS NOT NULL ORDER BY item_type")
+            cur.execute("SELECT DISTINCT item_type FROM antiques WHERE item_type IS NOT NULL AND item_type != '' ORDER BY item_type")
             item_types = [row[0] for row in cur.fetchall()]
+            cur.execute("SELECT DISTINCT period FROM antiques WHERE period IS NOT NULL AND period != '' ORDER BY period")
+            periods = [row[0] for row in cur.fetchall()]
     except Exception as e:
         log_activity('error', details={"function": "add_collection_item_get", "error": str(e)})
-        flash("Error fetching item types.", "error")
+        flash("Error fetching suggestions.", "error")
         item_types = []
+        periods = []
 
-    return render_template('add_item.html', item_types=item_types)
+    return render_template('add_item.html', item_types=item_types, periods=periods)
 
 
 # --- Oracle Chat (Gemini) Routes ---

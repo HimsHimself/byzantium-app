@@ -27,7 +27,11 @@
                 {% if items %}
                     {% for item in items %}
                     <tr class="bg-white border-b hover:bg-slate-50">
-                        <td class="px-6 py-4 font-medium text-slate-900 whitespace-nowrap">{{ item.name }}</td>
+                        <td class="px-6 py-4 font-medium text-slate-900 whitespace-nowrap">
+                            <a href="{{ url_for('view_collection_item', item_id=item.id) }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">
+                                {{ item.name }}
+                            </a>
+                        </td>
                         <td class="px-6 py-4">{{ item.item_type or 'N/A' }}</td>
                         <td class="px-6 py-4">{% if item.approximate_value is not none %}£{{ "%.2f"|format(item.approximate_value) }}{% else %}N/A{% endif %}</td>
                         <td class="px-6 py-4">
