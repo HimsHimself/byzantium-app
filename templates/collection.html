@@ -1,0 +1,43 @@
+{% extends "index.html" %}
+
+{% block content %}
+<div class="content-card rounded-lg p-6 md:p-8">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-semibold text-slate-800">
+            My Collection
+        </h2>
+        <button class="btn-primary text-sm font-semibold px-4 py-2 rounded-md transition-colors duration-300">
+            Add New Item
+        </button>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left text-slate-500">
+            <thead class="text-xs text-slate-700 uppercase bg-slate-100">
+                <tr>
+                    <th scope="col" class="px-6 py-3">Item Name</th>
+                    <th scope="col" class="px-6 py-3">Period</th>
+                    <th scope="col" class="px-6 py-3">Description</th>
+                    <th scope="col" class="px-6 py-3">Date Acquired</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if items %}
+                    {% for item in items %}
+                    <tr class="bg-white border-b hover:bg-slate-50">
+                        <td class="px-6 py-4 font-medium text-slate-900 whitespace-nowrap">{{ item.name }}</td>
+                        <td class="px-6 py-4">{{ item.period }}</td>
+                        <td class="px-6 py-4">{{ item.description | truncate(80) }}</td>
+                        <td class="px-6 py-4">{{ item.date_acquired.strftime('%d %b %Y') if item.date_acquired else 'N/A' }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr class="bg-white border-b">
+                        <td colspan="4" class="px-6 py-4 text-center text-slate-500 italic">Your collection is empty. Use the 'Add New Item' button to start cataloging.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

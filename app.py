@@ -688,5 +688,20 @@ def view_activity_log():
         log_activity('error', details={"function": "view_activity_log", "error": str(e)})
         return f"Error fetching activity log: {e}", 500
 
+
+@app.route('/collection')
+@login_required
+def collection_page():
+    try:
+        conn = get_db()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT * FROM antiques WHERE user_id = 1 ORDER BY name")
+            items = cur.fetchall()
+        return render_template('collection.html', items=items)
+    except Exception as e:
+        log_activity('error', details={"function": "collection_page", "error": str(e)})
+        flash("Error fetching collection.", "error")
+        return redirect(url_for('hello'))
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5167)), debug=False)

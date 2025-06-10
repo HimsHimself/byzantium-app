@@ -54,7 +54,6 @@ try:
     cur.execute(create_notes_script)
     print("Table 'notes' created successfully.")
 
-    # New table for food logging
     create_food_log_script = """
     CREATE TABLE IF NOT EXISTS food_log (
         id SERIAL PRIMARY KEY,
@@ -68,6 +67,24 @@ try:
     """
     cur.execute(create_food_log_script)
     print("Table 'food_log' created successfully.")
+
+    # New table for the antiques collection
+    create_antiques_script = """
+    CREATE TABLE IF NOT EXISTS antiques (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        period VARCHAR(100),
+        provenance TEXT,
+        date_acquired DATE,
+        image_url TEXT,
+        user_id INTEGER NOT NULL DEFAULT 1,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    """
+    cur.execute(create_antiques_script)
+    print("Table 'antiques' created successfully.")
 
 
     conn.commit()
