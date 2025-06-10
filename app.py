@@ -1,7 +1,7 @@
 import os
 import psycopg2
 import json
-import requests # For making HTTP requests to the Cloud Function
+import requests
 import uuid
 import threading
 import pytz
@@ -14,6 +14,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
+from google.cloud import storage
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
@@ -28,16 +30,19 @@ if not APP_PASSWORD:
 
 ORACLE_API_ENDPOINT_URL = os.environ.get("ORACLE_API_ENDPOINT_URL")
 ORACLE_API_FUNCTION_KEY = os.environ.get("ORACLE_API_FUNCTION_KEY")
+GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME") # Should be 'byzantium_bucket'
+GOOGLE_CREDENTIALS_JSON = os.environ.get("GOOGLE_CREDENTIALS_JSON")
 
 if not ORACLE_API_ENDPOINT_URL:
     print("[WARNING] ORACLE_API_ENDPOINT_URL not set. Oracle Chat functionality will be significantly impaired or disabled.")
+if not GCS_BUCKET_NAME or not GOOGLE_CREDENTIALS_JSON:
+    print("[WARNING] GCS environment variables not set. Image uploads for the collection will not work.")
+
 
 # --- In-memory store for background job status ---
 oracle_jobs = {}
 
 # --- Database Helper ---
-# RATIONALIZED: This function now gets the connection from the Flask 'g' object,
-# which is managed per-request by the before_request and teardown_appcontext handlers.
 def get_db():
     if 'db' not in g:
         db_url = os.environ.get("DATABASE_URL")
@@ -46,7 +51,6 @@ def get_db():
         g.db = psycopg2.connect(db_url)
     return g.db
 
-# RATIONALIZED: This function runs after each request to ensure the database connection is closed.
 @app.teardown_appcontext
 def close_db(e=None):
     db = g.pop('db', None)
@@ -54,9 +58,7 @@ def close_db(e=None):
         db.close()
 
 # --- Activity Logging Helper ---
-# Minor modification to use the new get_db() function.
 def log_activity(activity_type, details=None, ip_address=None, user_agent=None, path=None):
-    # This function now runs within the request context, so it can use get_db() safely.
     try:
         user_id = 0
         try:
@@ -83,7 +85,6 @@ def log_activity(activity_type, details=None, ip_address=None, user_agent=None, 
     except Exception as e:
         print(f"--- CRITICAL: Error logging activity '{activity_type}': {e} ---")
         traceback.print_exc()
-        # Cannot flash here as this may run outside a request context.
 
 # --- Authentication Decorator ---
 def login_required(f):
@@ -95,6 +96,44 @@ def login_required(f):
             return redirect(url_for('login', next=target_url))
         return f(*args, **kwargs)
     return decorated_function
+
+# --- GCS Upload Helper (Render-compatible) ---
+def upload_to_gcs(file_to_upload, bucket_name):
+    """Uploads a file to a given GCS bucket and returns its public URL."""
+    if not file_to_upload or not file_to_upload.filename:
+        return None
+    
+    # Authenticate using the JSON credentials stored in the environment variable
+    credentials_json_str = os.environ.get('GOOGLE_CREDENTIALS_JSON')
+    if not credentials_json_str:
+        print("ERROR: GOOGLE_CREDENTIALS_JSON environment variable not set.")
+        return None
+    
+    try:
+        credentials_info = json.loads(credentials_json_str)
+        storage_client = storage.Client.from_service_account_info(credentials_info)
+    except json.JSONDecodeError:
+        print("ERROR: Could not decode GOOGLE_CREDENTIALS_JSON.")
+        return None
+    except Exception as e:
+        print(f"Error creating GCS client: {e}")
+        return None
+
+    bucket = storage_client.bucket(bucket_name)
+    
+    original_filename = secure_filename(file_to_upload.filename)
+    filename_ext = os.path.splitext(original_filename)[1]
+    unique_filename = f"{uuid.uuid4().hex}{filename_ext}"
+    
+    blob = bucket.blob(unique_filename)
+    
+    try:
+        blob.upload_from_file(file_to_upload, content_type=file_to_upload.content_type)
+        return blob.public_url
+    except Exception as e:
+        print(f"Error uploading to GCS: {e}")
+        traceback.print_exc()
+        return None
 
 # --- Main Routes ---
 @app.route('/login', methods=['GET', 'POST'])
@@ -136,6 +175,7 @@ def hello():
     return render_template('index.html')
 
 # --- Notes and Folders Routes ---
+# ... (existing notes and folders routes are unchanged) ...
 @app.route('/notes/')
 @app.route('/notes/folder/<int:folder_id>')
 @login_required
@@ -152,14 +192,11 @@ def notes_page(folder_id=None):
             if not current_folder:
                 flash('Folder not found.', 'error')
                 return redirect(url_for('notes_page'))
-            # Get subfolders of the current folder
             cur.execute("SELECT * FROM folders WHERE parent_folder_id = %s AND user_id = 1 ORDER BY name", (folder_id,))
             folders_to_display = cur.fetchall()
-            # Get notes in the current folder
             cur.execute("SELECT id, title, folder_id, updated_at FROM notes WHERE folder_id = %s AND user_id = 1 ORDER BY updated_at DESC", (folder_id,))
             notes_in_current_folder = cur.fetchall()
         else:
-            # Get root folders
             cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
             folders_to_display = cur.fetchall()
             
@@ -294,7 +331,6 @@ def view_note(note_id):
             cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
             current_folder = cur.fetchone()
             
-            # This logic determines which parent folder to get the sub-folder list from.
             parent_id_for_folder_list = current_folder['parent_folder_id'] if current_folder else None
             if parent_id_for_folder_list:
                 cur.execute("SELECT * FROM folders WHERE parent_folder_id = %s AND user_id = 1 ORDER BY name", (parent_id_for_folder_list,))
@@ -436,12 +472,10 @@ def food_log_page():
                 log_activity('food_log_error', details={'error': str(e)})
                 flash(f"Error saving to database: {e}", 'error')
 
-    # --- FIX: Calculate current time in London timezone ---
     london_tz = pytz.timezone("Europe/London")
     now_in_london = datetime.now(london_tz)
     default_datetime = now_in_london.strftime('%Y-%m-%dT%H:%M')
-    # --- END FIX ---
-
+    
     return render_template('food_log.html', default_datetime=default_datetime)
 
 @app.route('/food_log/view')
@@ -453,14 +487,12 @@ def view_food_log():
         today_london = datetime.now(london_tz).date()
         thirty_days_ago = datetime.now() - timedelta(days=30)
         
-        today_total_calories = 0 # Default value
+        today_total_calories = 0
 
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Get logs for the last 30 days for the main table view
             cur.execute("SELECT * FROM food_log WHERE user_id = 1 AND log_time >= %s ORDER BY log_time DESC", (thirty_days_ago,))
             logs = cur.fetchall()
 
-            # Calculate today's total calories, converting stored timestamps to the London timezone
             sql_today_calories = """
                 SELECT SUM(calories) as total
                 FROM food_log
@@ -471,7 +503,6 @@ def view_food_log():
             if result and result['total'] is not None:
                 today_total_calories = int(result['total'])
         
-        # Generate the plot
         if logs:
             df = pd.DataFrame(logs)
             df['date'] = pd.to_datetime(df['log_time']).dt.date
@@ -485,13 +516,7 @@ def view_food_log():
 
             plt.style.use('seaborn-v0_8-whitegrid')
             fig, ax = plt.subplots(figsize=(12, 6))
-
-            bar_color = '#4B0082'
-            line_color = '#C59B08'
-            bg_color = '#FDFDF6'
-            text_color = '#2d3748'
-            grid_color = '#e2e8f0'
-
+            bar_color, line_color, bg_color, text_color, grid_color = '#4B0082', '#C59B08', '#FDFDF6', '#2d3748', '#e2e8f0'
             fig.patch.set_facecolor(bg_color)
             ax.set_facecolor(bg_color)
             ax.bar(daily_calories['date'], daily_calories['calories'], color=bar_color, width=0.6, label='Total Daily Calories')
@@ -505,10 +530,8 @@ def view_food_log():
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
             ax.xaxis.set_major_locator(mdates.DayLocator(interval=3))
             plt.setp(ax.get_xticklabels(), ha="right")
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.spines['left'].set_color(grid_color)
-            ax.spines['bottom'].set_color(grid_color)
+            ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False)
+            ax.spines['left'].set_color(grid_color); ax.spines['bottom'].set_color(grid_color)
             ax.legend(frameon=False, loc='upper left', bbox_to_anchor=(0, 1.1))
             plt.tight_layout()
             
@@ -526,6 +549,91 @@ def view_food_log():
         log_activity('error', details={"function": "view_food_log", "error": str(e)})
         flash("Error fetching food log history.", "error")
         return redirect(url_for('food_log_page'))
+
+# --- Collection Log Routes ---
+@app.route('/collection')
+@login_required
+def collection_page():
+    try:
+        conn = get_db()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT * FROM antiques WHERE user_id = 1 ORDER BY created_at DESC")
+            items = cur.fetchall()
+        return render_template('collection.html', items=items)
+    except Exception as e:
+        log_activity('error', details={"function": "collection_page", "error": str(e)})
+        flash("Error fetching collection.", "error")
+        return redirect(url_for('hello'))
+
+@app.route('/collection/add', methods=['GET', 'POST'])
+@login_required
+def add_collection_item():
+    conn = get_db()
+    
+    if request.method == 'POST':
+        try:
+            # --- Form Data Retrieval ---
+            name = request.form.get('name')
+            item_type = request.form.get('item_type').strip() if request.form.get('item_type') else None
+            period = request.form.get('period').strip() if request.form.get('period') else None
+            description = request.form.get('description')
+            provenance = request.form.get('provenance')
+            value_str = request.form.get('approximate_value')
+            is_sellable = 'is_sellable' in request.form 
+            
+            if not name:
+                flash('Item Name is a required field.', 'error')
+                return redirect(url_for('add_collection_item'))
+
+            approximate_value = float(value_str) if value_str else None
+            
+            # --- File Upload ---
+            image_url = None
+            image_file = request.files.get('image')
+            if image_file and image_file.filename != '':
+                if GCS_BUCKET_NAME:
+                    image_url = upload_to_gcs(image_file, GCS_BUCKET_NAME)
+                    if not image_url:
+                        flash('Image upload failed. Please try again.', 'error')
+                        return redirect(url_for('add_collection_item'))
+                else:
+                    flash('Image upload is not configured on the server.', 'error')
+
+            # --- Database Insertion ---
+            sql = """
+                INSERT INTO antiques (name, item_type, period, description, provenance, approximate_value, is_sellable, image_url, user_id, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 1, NOW(), NOW())
+            """
+            with conn.cursor() as cur:
+                cur.execute(sql, (
+                    name, item_type, period, description, provenance, 
+                    approximate_value, is_sellable, image_url
+                ))
+            conn.commit()
+
+            flash(f"Item '{name}' added to your collection!", 'success')
+            log_activity('collection_item_added', details={'name': name, 'image_url': image_url})
+            return redirect(url_for('collection_page'))
+
+        except Exception as e:
+            conn.rollback()
+            log_activity('error', details={"function": "add_collection_item", "error": str(e)})
+            flash(f"An error occurred while saving the item: {e}", "error")
+            traceback.print_exc()
+            return redirect(url_for('add_collection_item'))
+
+    # --- GET Request Logic ---
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT item_type FROM antiques WHERE item_type IS NOT NULL ORDER BY item_type")
+            item_types = [row[0] for row in cur.fetchall()]
+    except Exception as e:
+        log_activity('error', details={"function": "add_collection_item_get", "error": str(e)})
+        flash("Error fetching item types.", "error")
+        item_types = []
+
+    return render_template('add_item.html', item_types=item_types)
+
 
 # --- Oracle Chat (Gemini) Routes ---
 @app.route('/oracle_chat')
@@ -642,34 +750,28 @@ def view_activity_log():
             '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Activity Log</title>',
             '<script src="https://cdn.tailwindcss.com"></script>',
             '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">',
-            # MODIFIED: Removed padding, th bg-color, and tr:nth-child bg-color to use Tailwind classes instead.
             "<style> body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #334155; padding: 20px; }",
             "table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9em; }",
             "th, td { border: 1px solid #cbd5e1; text-align: left; vertical-align: top; word-break: break-word; }",
-            "th { color: #4B0082; }", # Keep custom header text color
+            "th { color: #4B0082; }",
             "a { color: #4B0082; text-decoration: none; } a:hover { text-decoration: underline; }",
             ".details-json { max-width: 400px; max-height: 200px; overflow: auto; white-space: pre-wrap; background-color: #eef2ff; padding: 5px; border-radius: 4px; font-family: monospace; font-size: 0.8em;}</style>",
             '</head><body>',
             f'<h1 class="text-2xl font-semibold mb-4" style="color: #4B0082;">Activity Log <span style="color: #DAA520;">&dagger;</span> (Last 100)</h1>',
-            # MODIFIED: Added Tailwind classes to table
             f'<p><a href="{dashboard_url}">Back to Dashboard</a></p><div class="overflow-x-auto"><table class="w-full text-sm text-left text-slate-500">'
         ]
 
         if activities:
             colnames = list(activities[0].keys())
-            # MODIFIED: Added Tailwind classes to thead > tr
             html_parts.append('<thead class="text-xs text-slate-700 uppercase bg-slate-100"><tr>')
             for name in colnames:
-                # MODIFIED: Added Tailwind classes to th
                 html_parts.append(f"<th scope=\"col\" class=\"px-6 py-3\">{name.replace('_', ' ').title()}</th>")
             html_parts.append('</tr></thead><tbody>')
 
             for activity in activities:
-                # MODIFIED: Added Tailwind classes to tr
                 html_parts.append('<tr class="bg-white border-b hover:bg-slate-50">')
                 for col_name in colnames:
                     value = activity.get(col_name)
-                    # MODIFIED: Added Tailwind classes to td
                     if col_name == 'details' and value is not None:
                         details_json = json.dumps(value, indent=2)
                         html_parts.append(f"<td class=\"px-6 py-2\"><pre class='details-json'>{details_json}</pre></td>")
@@ -679,53 +781,13 @@ def view_activity_log():
             html_parts.append("</tbody>")
         else:
             html_parts.append("<thead class=\"text-xs text-slate-700 uppercase bg-slate-100\"><tr><th>Info</th></tr></thead>")
-            # MODIFIED: Added Tailwind classes to td
             html_parts.append("<tbody><tr><td colspan=\"1\" class=\"px-6 py-4 text-center text-slate-500 italic\">No activities found.</td></tr></tbody>")
             
-        html_parts.append('</table></div></body></html>') # MODIFIED: Added closing div for overflow-x-auto
+        html_parts.append('</table></div></body></html>')
         return "".join(html_parts)
     except Exception as e:
         log_activity('error', details={"function": "view_activity_log", "error": str(e)})
         return f"Error fetching activity log: {e}", 500
-
-
-@app.route('/collection')
-@login_required
-def collection_page():
-    try:
-        conn = get_db()
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT * FROM antiques WHERE user_id = 1 ORDER BY created_at DESC")
-            items = cur.fetchall()
-        return render_template('collection.html', items=items)
-    except Exception as e:
-        log_activity('error', details={"function": "collection_page", "error": str(e)})
-        flash("Error fetching collection.", "error")
-        return redirect(url_for('hello'))
-
-@app.route('/collection/add', methods=['GET', 'POST'])
-@login_required
-def add_collection_item():
-    conn = get_db()
-    
-    if request.method == 'POST':
-        # We will add the logic to handle the form submission,
-        # file upload, and DB insert here in the next step.
-        flash('Item added successfully! (Placeholder)', 'success')
-        return redirect(url_for('collection_page'))
-    
-    # For a GET request, fetch existing item types for the dropdown
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT item_type FROM antiques WHERE item_type IS NOT NULL ORDER BY item_type")
-            # The query returns tuples, so we extract the first element of each
-            item_types = [row[0] for row in cur.fetchall()]
-    except Exception as e:
-        log_activity('error', details={"function": "add_collection_item", "error": str(e)})
-        flash("Error fetching item types.", "error")
-        item_types = []
-
-    return render_template('add_item.html', item_types=item_types)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5167)), debug=False)
