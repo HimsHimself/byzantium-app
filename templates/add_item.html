@@ -11,38 +11,52 @@
         </a>
     </div>
 
-    <form method="POST" action="{{ url_for('add_collection_item') }}" enctype="multipart/form-data" class="space-y-6">
-        <div>
-            <label for="name" class="block mb-2 text-sm font-medium text-slate-600">Item Name</label>
-            <input type="text" name="name" id="name" class="form-input block w-full p-3 rounded-md" required>
+    <form method="POST" action="{{ url_for('add_collection_item') }}" enctype="multipart/form-data">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
+            
+            <div class="md:col-span-2">
+                <label for="name" class="block mb-2 text-sm font-medium text-slate-600">Item Name</label>
+                <input type="text" name="name" id="name" class="form-input block w-full p-3 rounded-md" required>
+            </div>
+
+            <div>
+                <label for="item_type" class="block mb-2 text-sm font-medium text-slate-600">Item Type</label>
+                <input type="text" name="item_type" id="item_type" list="item_type_suggestions" class="form-input block w-full p-3 rounded-md" placeholder="e.g., Medal, Postcard, Helmet">
+                <datalist id="item_type_suggestions">
+                    {% for type in item_types %}
+                        <option value="{{ type }}">
+                    {% endfor %}
+                </datalist>
+            </div>
+
+            <div>
+                <label for="period" class="block mb-2 text-sm font-medium text-slate-600">Period</label>
+                <input type="text" name="period" id="period" class="form-input block w-full p-3 rounded-md" placeholder="e.g., WW1, Victorian">
+            </div>
+
+            <div class="md:col-span-2">
+                <label for="description" class="block mb-2 text-sm font-medium text-slate-600">Description</label>
+                <textarea name="description" id="description" rows="4" class="form-input block w-full p-3 rounded-md"></textarea>
+            </div>
+
+            <div class="md:col-span-2">
+                <label for="provenance" class="block mb-2 text-sm font-medium text-slate-600">Provenance (History of Ownership)</label>
+                <textarea name="provenance" id="provenance" rows="3" class="form-input block w-full p-3 rounded-md"></textarea>
+            </div>
+
+            <div>
+                <label for="approximate_value" class="block mb-2 text-sm font-medium text-slate-600">Approximate Value</label>
+                <input type="text" name="approximate_value" id="approximate_value" class="form-input block w-full p-3 rounded-md" placeholder="e.g., £50">
+            </div>
+
+            <div>
+                <label for="image" class="block mb-2 text-sm font-medium text-slate-600">Image</label>
+                <input type="file" name="image" id="image" class="form-input block w-full p-3 rounded-md border-dashed" accept="image/jpeg, image/png, image/webp">
+            </div>
+
         </div>
 
-        <div>
-            <label for="period" class="block mb-2 text-sm font-medium text-slate-600">Period (e.g., WW1, Victorian)</label>
-            <input type="text" name="period" id="period" class="form-input block w-full p-3 rounded-md">
-        </div>
-
-        <div>
-            <label for="date_acquired" class="block mb-2 text-sm font-medium text-slate-600">Date Acquired</label>
-            <input type="date" name="date_acquired" id="date_acquired" class="form-input block w-full p-3 rounded-md">
-        </div>
-        
-        <div>
-            <label for="description" class="block mb-2 text-sm font-medium text-slate-600">Description</label>
-            <textarea name="description" id="description" rows="4" class="form-input block w-full p-3 rounded-md"></textarea>
-        </div>
-
-        <div>
-            <label for="provenance" class="block mb-2 text-sm font-medium text-slate-600">Provenance (History of Ownership)</label>
-            <textarea name="provenance" id="provenance" rows="3" class="form-input block w-full p-3 rounded-md"></textarea>
-        </div>
-
-        <div>
-            <label for="image" class="block mb-2 text-sm font-medium text-slate-600">Image</label>
-            <input type="file" name="image" id="image" class="form-input block w-full p-3 rounded-md border-dashed" accept="image/jpeg, image/png, image/webp">
-        </div>
-
-        <div class="flex justify-end">
+        <div class="flex justify-end mt-8 pt-6 border-t border-slate-200">
             <button type="submit" class="btn-primary w-full md:w-auto font-semibold py-3 px-6 rounded-md">Save Item</button>
         </div>
     </form>

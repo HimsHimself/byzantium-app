@@ -695,26 +695,37 @@ def collection_page():
     try:
         conn = get_db()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT * FROM antiques WHERE user_id = 1 ORDER BY name")
+            cur.execute("SELECT * FROM antiques WHERE user_id = 1 ORDER BY created_at DESC")
             items = cur.fetchall()
         return render_template('collection.html', items=items)
     except Exception as e:
         log_activity('error', details={"function": "collection_page", "error": str(e)})
         flash("Error fetching collection.", "error")
         return redirect(url_for('hello'))
-    
+
 @app.route('/collection/add', methods=['GET', 'POST'])
 @login_required
 def add_collection_item():
+    conn = get_db()
+    
     if request.method == 'POST':
         # We will add the logic to handle the form submission,
-        # file upload to Google Cloud Storage, and DB insert here
-        # in the next step.
+        # file upload, and DB insert here in the next step.
         flash('Item added successfully! (Placeholder)', 'success')
         return redirect(url_for('collection_page'))
     
-    # For a GET request, just show the form
-    return render_template('add_item.html')
+    # For a GET request, fetch existing item types for the dropdown
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT item_type FROM antiques WHERE item_type IS NOT NULL ORDER BY item_type")
+            # The query returns tuples, so we extract the first element of each
+            item_types = [row[0] for row in cur.fetchall()]
+    except Exception as e:
+        log_activity('error', details={"function": "add_collection_item", "error": str(e)})
+        flash("Error fetching item types.", "error")
+        item_types = []
+
+    return render_template('add_item.html', item_types=item_types)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5167)), debug=False)

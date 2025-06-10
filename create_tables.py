@@ -68,15 +68,16 @@ try:
     cur.execute(create_food_log_script)
     print("Table 'food_log' created successfully.")
 
-    # New table for the antiques collection
+# New table for the antiques collection
     create_antiques_script = """
     CREATE TABLE IF NOT EXISTS antiques (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         description TEXT,
+        item_type VARCHAR(100),
         period VARCHAR(100),
         provenance TEXT,
-        date_acquired DATE,
+        approximate_value VARCHAR(100),
         image_url TEXT,
         user_id INTEGER NOT NULL DEFAULT 1,
         created_at TIMESTAMPTZ DEFAULT NOW(),

@@ -6,7 +6,6 @@
         <h2 class="text-2xl font-semibold text-slate-800">
             My Collection
         </h2>
-        {# --- MODIFIED LINE --- #}
         <a href="{{ url_for('add_collection_item') }}" class="btn-primary text-sm font-semibold px-4 py-2 rounded-md">
             Add New Item
         </a>
@@ -17,9 +16,9 @@
             <thead class="text-xs text-slate-700 uppercase bg-slate-100">
                 <tr>
                     <th scope="col" class="px-6 py-3">Item Name</th>
-                    <th scope="col" class="px-6 py-3">Period</th>
-                    <th scope="col" class="px-6 py-3">Description</th>
-                    <th scope="col" class="px-6 py-3">Date Acquired</th>
+                    <th scope="col" class="px-6 py-3">Item Type</th>
+                    <th scope="col" class="px-6 py-3">Approx. Value</th>
+                    <th scope="col" class="px-6 py-3">Date Added</th>
                 </tr>
             </thead>
             <tbody>
@@ -27,9 +26,9 @@
                     {% for item in items %}
                     <tr class="bg-white border-b hover:bg-slate-50">
                         <td class="px-6 py-4 font-medium text-slate-900 whitespace-nowrap">{{ item.name }}</td>
-                        <td class="px-6 py-4">{{ item.period }}</td>
-                        <td class="px-6 py-4">{{ item.description | truncate(80) }}</td>
-                        <td class="px-6 py-4">{{ item.date_acquired.strftime('%d %b %Y') if item.date_acquired else 'N/A' }}</td>
+                        <td class="px-6 py-4">{{ item.item_type or 'N/A' }}</td>
+                        <td class="px-6 py-4">{{ item.approximate_value or 'N/A' }}</td>
+                        <td class="px-6 py-4">{{ item.created_at.strftime('%d %b %Y') if item.created_at else 'N/A' }}</td>
                     </tr>
                     {% endfor %}
                 {% else %}
