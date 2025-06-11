@@ -1,5 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -88,6 +86,58 @@
         .btn-primary:hover {
             box-shadow: 0 4px 12px 0 rgba(75, 0, 130, 0.3);
             transform: translateY(-2px);
+        }
+
+        /* --- New Responsive Table Styles --- */
+        @media (max-width: 767px) {
+            .responsive-table thead {
+                display: none;
+            }
+            .responsive-table tr {
+                display: block;
+                margin-bottom: 1rem;
+                border: 1px solid var(--byzantine-border);
+                border-radius: 0.5rem;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            }
+            .responsive-table tr:last-of-type {
+                 margin-bottom: 0;
+            }
+            .responsive-table td {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 0.75rem 1rem;
+                text-align: right;
+                border-bottom: 1px solid #f1f5f9; /* slate-100 */
+            }
+            .responsive-table td:last-child {
+                border-bottom: none;
+            }
+            .responsive-table td::before {
+                content: attr(data-label);
+                font-weight: 600;
+                text-align: left;
+                color: var(--byzantine-slate);
+                padding-right: 1rem;
+            }
+            .responsive-table td.name-cell {
+                display: block;
+                text-align: left;
+                padding-top: 1rem;
+            }
+            .responsive-table td.name-cell a {
+                font-size: 1.125rem; /* lg */
+            }
+            .responsive-table td.name-cell::before {
+                 display: none;
+            }
+            .responsive-table td.actions-cell {
+                 justify-content: flex-end;
+            }
+            .responsive-table td.actions-cell::before {
+                 content: ''; /* No label for actions cell */
+            }
         }
     </style>
 </head>
