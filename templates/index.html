@@ -2,7 +2,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Byzantium Dashboard</title>
-    <!-- FAVICON: A simple SVG icon that matches your site's theme -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22 fill=%22%234B0082%22>†</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -132,7 +131,6 @@
         </div>
     </aside>
 
-    <!-- MENU FIX: Added a clickable overlay that appears when the mobile menu is open. -->
     <div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-20 hidden md:hidden"></div>
 
     <div class="flex-1 flex flex-col md:ml-64">
@@ -159,34 +157,119 @@
                 {% endif %}
             {% endwith %}
             
-             {% block content %}
-            <div class="content-card p-6 md:p-8">
-                <h2 class="text-2xl font-semibold text-slate-800 mb-6">Welcome to your Byzantium Dashboard</h2>
-                <p class="text-slate-600 mb-4">
-                    This is your personal space to manage notes, interact with AI, and track activity.
-                    Use the navigation on the left to explore different sections.
-                </p>
-                <p class="text-slate-600">
-                    Future content and functionalities will appear here. For now, you can view the
-                    <a href="{{ url_for('view_activity_log') }}" class="byzantine-purple-text hover:underline font-medium">Activity Log</a>
-                    to see recent interactions.
-                </p>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-                <div class="content-card p-6">
-                    <h3 class="text-lg font-semibold text-slate-700 mb-4">Quick Actions</h3>
-                    <ul class="space-y-3">
-                        <li><a href="{{ url_for('notes_page') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">Manage Notes</a></li>
-                        <li><a href="{{ url_for('oracle_chat_page') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">Consult the Oracle</a></li>
-                        <li><a href="{{ url_for('food_log_page') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">Log Food</a></li>
-                    </ul>
+            {% block content %}
+            <div class="space-y-8">
+                <div class="p-6 rounded-lg" style="background-image: linear-gradient(to top right, var(--imperial-purple), #6d28d9);">
+                    <h2 class="text-3xl font-bold text-white">Your Imperial Dashboard</h2>
+                    <p class="text-purple-200 mt-1">A summary of your personal archives and daily logs.</p>
                 </div>
-                <div class="content-card p-6">
-                    <h3 class="text-lg font-semibold text-slate-700 mb-3">Recent Activity (Summary)</h3>
-                    <p class="text-slate-500 text-sm">Summary of recent logs will go here.</p>
+            
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            
+                    <div class="content-card p-6 flex flex-col">
+                        <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
+                            <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m12 0V6a3 3 0 00-3-3H9a3 3 0 00-3 3v3" /></svg>
+                            Imperial Treasury
+                        </h3>
+                        {% if stats and stats.total_items > 0 %}
+                            <div class="space-y-3">
+                                <div>
+                                    <p class="text-sm text-slate-500">Total Value</p>
+                                    <p class="text-2xl font-bold byzantine-purple-text">£{{ "%.2f"|format(stats.total_value or 0) }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-slate-500">Total Items</p>
+                                    <p class="text-2xl font-bold byzantine-purple-text">{{ stats.total_items }}</p>
+                                </div>
+                            </div>
+                            <div class="mt-auto pt-4 flex items-center space-x-4">
+                                 <a href="{{ url_for('collection_page') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">View Collection</a>
+                                 <a href="{{ url_for('collection_dashboard') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">View Dashboard</a>
+                            </div>
+                        {% else %}
+                            <p class="text-slate-500 italic text-sm">Your collection is empty. Add your first item to see a summary here.</p>
+                             <div class="mt-auto pt-4">
+                                 <a href="{{ url_for('add_collection_item') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">Add an Item &rarr;</a>
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="content-card p-6 flex flex-col">
+                        <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
+                            <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>
+                            Scribe's Desk
+                        </h3>
+                        {% if recent_notes %}
+                            <ul class="space-y-2">
+                                {% for note in recent_notes %}
+                                    <li class="flex justify-between items-baseline">
+                                        <a href="{{ url_for('view_note', note_id=note.id) }}" class="text-slate-800 hover:text-purple-700 truncate" title="{{ note.title }}">
+                                            {{ note.title }}
+                                        </a>
+                                        <span class="text-xs text-slate-400 flex-shrink-0 ml-2">{{ note.updated_at.strftime('%d %b') }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-slate-500 italic text-sm">No notes found.</p>
+                        {% endif %}
+                        <div class="mt-auto pt-4">
+                            <a href="{{ url_for('notes_page') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">Manage all notes &rarr;</a>
+                        </div>
+                    </div>
+                    
+                    <div class="content-card p-6 flex flex-col">
+                        <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
+                             <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 9.75v.015m0 0v2.235a2.25 2.25 0 01-.632 1.506l-4.14 4.141a2.251 2.251 0 01-1.588.659H6.321a2.25 2.25 0 01-1.588-.66L.64 13.5a2.25 2.25 0 01-.64-1.506v-2.235a2.25 2.25 0 01.632-1.506l4.14-4.141a2.251 2.251 0 011.588-.659h8.232a2.25 2.25 0 011.588.66l4.142 4.14a2.25 2.25 0 01.632 1.506z" /></svg>
+                            Daily Sustenance
+                        </h3>
+                        <div>
+                             <p class="text-sm text-slate-500">Calories Logged Today</p>
+                             <p class="text-2xl font-bold byzantine-purple-text">{{ "%.0f"|format(calories_today) }} <span class="text-lg font-medium text-slate-400">/ 2000 kcal</span></p>
+                        </div>
+                        <div class="mt-auto pt-4">
+                            <a href="{{ url_for('food_log_page') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">Log more food &rarr;</a>
+                        </div>
+                    </div>
+                    
+                    <div class="content-card p-6">
+                        <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
+                            <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg>
+                            Quick Actions
+                        </h3>
+                        <ul class="space-y-3">
+                            <li><a href="{{ url_for('add_collection_item') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">Add New Item to Treasury</a></li>
+                            <li><a href="{{ url_for('oracle_chat_page') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">Consult the Oracle</a></li>
+                            <li><a href="{{ url_for('view_food_log') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">View Food Log History</a></li>
+                        </ul>
+                    </div>
+                    
+                    <div class="content-card p-6 lg:col-span-2">
+                        <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
+                             <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
+                            Palace Ledger
+                        </h3>
+                         {% if recent_activities %}
+                            <ul class="space-y-2 text-sm">
+                                {% for activity in recent_activities %}
+                                    <li class="flex justify-between items-baseline bg-slate-50 p-2 rounded-md">
+                                        <p class="text-slate-600">
+                                            Action: <span class="font-semibold text-slate-800">{{ activity.activity_type.replace('_', ' ') | title }}</span>
+                                        </p>
+                                        <span class="text-xs text-slate-400 flex-shrink-0 ml-2">{{ activity.timestamp.strftime('%H:%M:%S') }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-slate-500 italic text-sm">No recent activity recorded.</p>
+                        {% endif %}
+                         <div class="mt-auto pt-4">
+                            <a href="{{ url_for('view_activity_log') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">View full log &rarr;</a>
+                        </div>
+                    </div>
                 </div>
             </div>
-             {% endblock %}
+            {% endblock %}
         </main>
     </div>
 

@@ -197,7 +197,44 @@ def before_request_handler():
 @app.route('/')
 @login_required
 def hello():
-    return render_template('index.html')
+    try:
+        conn = get_db()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # 1. Get Collection Statistics
+            cur.execute("SELECT COUNT(*) as total_items, SUM(approximate_value) as total_value FROM antiques WHERE user_id = 1")
+            collection_stats = cur.fetchone()
+
+            # 2. Get Recently Updated Notes (Top 4)
+            cur.execute("SELECT id, title, updated_at FROM notes WHERE user_id = 1 ORDER BY updated_at DESC LIMIT 4")
+            recent_notes = cur.fetchall()
+            
+            # 3. Get Today's Calorie Count
+            london_tz = pytz.timezone("Europe/London")
+            today_london = datetime.now(london_tz).date()
+            cur.execute("""
+                SELECT SUM(calories) as total
+                FROM food_log
+                WHERE user_id = 1 AND DATE(log_time AT TIME ZONE 'Europe/London') = %s;
+            """, (today_london,))
+            calories_today_result = cur.fetchone()
+            calories_today = calories_today_result['total'] if calories_today_result and calories_today_result['total'] is not None else 0
+
+            # 4. Get Recent Activity (Top 5)
+            cur.execute("SELECT activity_type, timestamp FROM activity_log WHERE user_id = 1 ORDER BY id DESC LIMIT 5")
+            recent_activities = cur.fetchall()
+
+        context = {
+            "stats": collection_stats,
+            "recent_notes": recent_notes,
+            "calories_today": calories_today,
+            "recent_activities": recent_activities
+        }
+        return render_template('index.html', **context)
+    except Exception as e:
+        log_activity('error', details={"function": "hello_dashboard", "error": str(e)})
+        flash("Could not load dashboard data.", "error")
+        # Render a failsafe static version if the DB query fails
+        return render_template('index.html')
 
 # --- Notes and Folders Routes ---
 # ... (existing notes and folders routes are unchanged) ...
