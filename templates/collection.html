@@ -12,7 +12,7 @@
     </div>
 
     <div class="overflow-x-auto">
-        <table class="w-full text-sm text-left text-slate-500">
+        <table class="w-full text-sm text-left text-slate-500 responsive-table">
             <thead class="text-xs text-slate-700 uppercase bg-slate-100">
                 <tr>
                     <th scope="col" class="px-6 py-3">Item Name</th>
@@ -28,22 +28,22 @@
                 {% if items %}
                     {% for item in items %}
                     <tr class="bg-white border-b hover:bg-slate-50">
-                        <td class="px-6 py-4 font-medium text-slate-900 whitespace-nowrap">
+                        <td data-label="Item Name" class="px-6 py-4 font-medium text-slate-900 whitespace-nowrap name-cell">
                             <a href="{{ url_for('view_collection_item', item_id=item.id) }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">
                                 {{ item.name }}
                             </a>
                         </td>
-                        <td class="px-6 py-4">{{ item.item_type or 'N/A' }}</td>
-                        <td class="px-6 py-4">{% if item.approximate_value is not none %}£{{ "%.2f"|format(item.approximate_value) }}{% else %}N/A{% endif %}</td>
-                        <td class="px-6 py-4">
+                        <td data-label="Type" class="px-6 py-4">{{ item.item_type or 'N/A' }}</td>
+                        <td data-label="Value" class="px-6 py-4">{% if item.approximate_value is not none %}£{{ "%.2f"|format(item.approximate_value) }}{% else %}N/A{% endif %}</td>
+                        <td data-label="Sellable" class="px-6 py-4">
                             {% if item.is_sellable %}
                                 <span class="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">Yes</span>
                             {% else %}
                                 <span class="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700">No</span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-4">{{ item.created_at.strftime('%d %b %Y') if item.created_at else 'N/A' }}</td>
-                        <td class="px-6 py-4 text-center">
+                        <td data-label="Added" class="px-6 py-4">{{ item.created_at.strftime('%d %b %Y') if item.created_at else 'N/A' }}</td>
+                        <td data-label="Image" class="px-6 py-4 md:text-center">
                             {% if item.image_url %}
                                 <a href="{{ item.image_url }}" target="_blank" rel="noopener noreferrer" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">
                                     View
@@ -52,8 +52,8 @@
                                 <span class="text-slate-400">None</span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-4 text-center">
-                            <form action="{{ url_for('delete_collection_item', item_id=item.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this item?');">
+                        <td data-label="Actions" class="px-6 py-4 md:text-center actions-cell">
+                            <form action="{{ url_for('delete_collection_item', item_id=item.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this item?');" class="inline-block">
                                 <button type="submit" class="font-medium text-red-600 hover:text-red-800 hover:underline">Delete</button>
                             </form>
                         </td>
