@@ -135,6 +135,35 @@ def upload_to_gcs(file_to_upload, bucket_name):
         traceback.print_exc()
         return None
 
+# --- GCS Deletion Helper ---
+def delete_from_gcs(image_url, bucket_name):
+    """Deletes a file from a given GCS bucket based on its public URL."""
+    if not image_url or not GCS_BUCKET_NAME:
+        return
+
+    try:
+        credentials_json_str = os.environ.get('GOOGLE_CREDENTIALS_JSON')
+        if not credentials_json_str:
+            print("ERROR: GOOGLE_CREDENTIALS_JSON environment variable not set.")
+            return
+
+        credentials_info = json.loads(credentials_json_str)
+        storage_client = storage.Client.from_service_account_info(credentials_info)
+        bucket = storage_client.bucket(bucket_name)
+
+        # Extract the blob name from the full URL
+        # Assumes URL format: https://storage.googleapis.com/BUCKET_NAME/BLOB_NAME
+        blob_name = image_url.split(f'/{bucket_name}/')[-1]
+        
+        blob = bucket.blob(blob_name)
+        if blob.exists():
+            blob.delete()
+            log_activity('gcs_file_deleted', details={'blob_name': blob_name})
+    except Exception as e:
+        print(f"Error deleting from GCS: {e}")
+        # Log this error but don't stop the main DB operation
+        log_activity('gcs_delete_error', details={'image_url': image_url, 'error': str(e)})
+
 # --- Main Routes ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -655,6 +684,113 @@ def add_collection_item():
         periods = []
 
     return render_template('add_item.html', item_types=item_types, periods=periods)
+
+# --- New Routes for Editing and Deleting Collection Items ---
+
+@app.route('/collection/item/<int:item_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_collection_item(item_id):
+    conn = get_db()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT * FROM antiques WHERE id = %s AND user_id = 1", (item_id,))
+            item = cur.fetchone()
+        
+        if not item:
+            flash('Collection item not found.', 'error')
+            return redirect(url_for('collection_page'))
+
+        if request.method == 'POST':
+            name = request.form.get('name')
+            if not name:
+                flash('Item Name is a required field.', 'error')
+                return redirect(url_for('edit_collection_item', item_id=item_id))
+
+            # --- Form Data Retrieval ---
+            approximate_value = float(request.form.get('approximate_value')) if request.form.get('approximate_value') else None
+            
+            # --- Handle Image Update ---
+            image_url = item['image_url'] # Keep old image by default
+            image_file = request.files.get('image')
+            if image_file and image_file.filename != '':
+                if GCS_BUCKET_NAME:
+                    if item['image_url']: # Delete old image if it exists
+                        delete_from_gcs(item['image_url'], GCS_BUCKET_NAME)
+                    
+                    new_image_url = upload_to_gcs(image_file, GCS_BUCKET_NAME)
+                    if new_image_url:
+                        image_url = new_image_url
+                    else:
+                        flash('New image upload failed. Please try again.', 'error')
+                        return redirect(url_for('edit_collection_item', item_id=item_id))
+                else:
+                    flash('Image upload is not configured on the server.', 'error')
+
+            # --- Database Update ---
+            sql = """
+                UPDATE antiques SET 
+                name=%s, item_type=%s, period=%s, description=%s, provenance=%s, 
+                approximate_value=%s, is_sellable=%s, image_url=%s, updated_at=NOW()
+                WHERE id=%s AND user_id=1
+            """
+            with conn.cursor() as cur:
+                cur.execute(sql, (
+                    name, request.form.get('item_type').strip() if request.form.get('item_type') else None,
+                    request.form.get('period').strip() if request.form.get('period') else None,
+                    request.form.get('description'), request.form.get('provenance'),
+                    approximate_value, 'is_sellable' in request.form, image_url, item_id
+                ))
+            conn.commit()
+
+            flash(f"Item '{name}' has been updated!", 'success')
+            log_activity('collection_item_updated', details={'item_id': item_id, 'name': name})
+            return redirect(url_for('view_collection_item', item_id=item_id))
+
+        # --- GET Request Logic (fetch suggestions for datalists) ---
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT item_type FROM antiques WHERE item_type IS NOT NULL AND item_type != '' ORDER BY item_type")
+            item_types = [row[0] for row in cur.fetchall()]
+            cur.execute("SELECT DISTINCT period FROM antiques WHERE period IS NOT NULL AND period != '' ORDER BY period")
+            periods = [row[0] for row in cur.fetchall()]
+        
+        return render_template('edit_item.html', item=item, item_types=item_types, periods=periods)
+
+    except Exception as e:
+        conn.rollback()
+        log_activity('error', details={"function": "edit_collection_item", "error": str(e)})
+        flash(f"An error occurred: {e}", "error")
+        return redirect(url_for('collection_page'))
+
+
+@app.route('/collection/item/<int:item_id>/delete', methods=['POST'])
+@login_required
+def delete_collection_item(item_id):
+    conn = get_db()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT name, image_url FROM antiques WHERE id = %s AND user_id = 1", (item_id,))
+            item = cur.fetchone()
+
+        if not item:
+            flash("Item not found.", "error")
+            return redirect(url_for('collection_page'))
+
+        if item['image_url']: # Delete image from GCS
+            delete_from_gcs(item['image_url'], GCS_BUCKET_NAME)
+
+        with conn.cursor() as cur: # Delete item from database
+            cur.execute("DELETE FROM antiques WHERE id = %s AND user_id = 1", (item_id,))
+        conn.commit()
+        
+        log_activity('collection_item_deleted', details={'item_id': item_id, 'name': item['name']})
+        flash(f"Item '{item['name']}' has been deleted.", 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        log_activity('error', details={"function": "delete_collection_item", "error": str(e)})
+        flash(f"An error occurred while deleting the item: {e}", "error")
+        
+    return redirect(url_for('collection_page'))
 
 
 # --- Oracle Chat (Gemini) Routes ---

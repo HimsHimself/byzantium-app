@@ -1,0 +1,77 @@
+{% extends "index.html" %}
+
+{% block content %}
+<div class="content-card rounded-lg p-6 md:p-8">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-semibold text-slate-800">
+            Edit Item: <span class="font-bold">{{ item.name }}</span>
+        </h2>
+        <a href="{{ url_for('view_collection_item', item_id=item.id) }}" class="text-sm font-semibold text-slate-600 hover:text-purple-700">
+            &larr; Cancel and View Item
+        </a>
+    </div>
+
+    <form method="POST" action="{{ url_for('edit_collection_item', item_id=item.id) }}" enctype="multipart/form-data">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
+            
+            <div class="md:col-span-2">
+                <label for="name" class="block mb-2 text-sm font-medium text-slate-600">Item Name</label>
+                <input type="text" name="name" id="name" class="form-input block w-full p-3 rounded-md" value="{{ item.name }}" required>
+            </div>
+
+            <div>
+                <label for="item_type" class="block mb-2 text-sm font-medium text-slate-600">Item Type</label>
+                <input type="text" name="item_type" id="item_type" list="item_type_suggestions" class="form-input block w-full p-3 rounded-md" placeholder="e.g., Medal, Postcard" value="{{ item.item_type or '' }}">
+                <datalist id="item_type_suggestions">
+                    {% for type in item_types %}
+                        <option value="{{ type }}">
+                    {% endfor %}
+                </datalist>
+            </div>
+
+            <div>
+                <label for="period" class="block mb-2 text-sm font-medium text-slate-600">Period</label>
+                <input type="text" name="period" id="period" list="period_suggestions" class="form-input block w-full p-3 rounded-md" placeholder="e.g., WW1, Victorian" value="{{ item.period or '' }}">
+                <datalist id="period_suggestions">
+                    {% for period in periods %}
+                        <option value="{{ period }}">
+                    {% endfor %}
+                </datalist>
+            </div>
+
+            <div class="md:col-span-2">
+                <label for="description" class="block mb-2 text-sm font-medium text-slate-600">Description</label>
+                <textarea name="description" id="description" rows="4" class="form-input block w-full p-3 rounded-md">{{ item.description or '' }}</textarea>
+            </div>
+
+            <div class="md:col-span-2">
+                <label for="provenance" class="block mb-2 text-sm font-medium text-slate-600">Provenance</label>
+                <textarea name="provenance" id="provenance" rows="3" class="form-input block w-full p-3 rounded-md">{{ item.provenance or '' }}</textarea>
+            </div>
+
+            <div>
+                <label for="approximate_value" class="block mb-2 text-sm font-medium text-slate-600">Approximate Value (£)</label>
+                <input type="number" name="approximate_value" id="approximate_value" class="form-input block w-full p-3 rounded-md" placeholder="50.00" step="0.01" min="0" value="{{ item.approximate_value or '' }}">
+            </div>
+
+            <div>
+                <label for="image" class="block mb-2 text-sm font-medium text-slate-600">Change Image</label>
+                {% if item.image_url %}
+                <p class="text-xs text-slate-500 mb-2">Current image is set. Uploading a new file will replace it.</p>
+                {% endif %}
+                <input type="file" name="image" id="image" class="form-input block w-full p-3 rounded-md border-dashed" accept="image/jpeg, image/png, image/webp">
+            </div>
+
+            <div class="md:col-span-2 flex items-center pt-2">
+                <input type="checkbox" name="is_sellable" id="is_sellable" value="true" class="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500" {% if item.is_sellable %}checked{% endif %}>
+                <label for="is_sellable" class="ml-3 block text-sm font-medium text-slate-700">This item is OK to sell</label>
+            </div>
+
+        </div>
+
+        <div class="flex justify-end mt-8 pt-6 border-t border-slate-200">
+            <button type="submit" class="btn-primary w-full md:w-auto font-semibold py-3 px-6 rounded-md">Update Item</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
