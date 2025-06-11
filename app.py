@@ -101,22 +101,14 @@ def login_required(f):
 
 # --- GCS Upload Helper (Render-compatible) ---
 def upload_to_gcs(file_to_upload, bucket_name):
-    """Uploads a file to a given GCS bucket and returns its public URL."""
+    """Uploads a file to a given GCS bucket and returns its filename.""" # <-- Docstring updated
     if not file_to_upload or not file_to_upload.filename:
         return None
     
-    # Authenticate using the JSON credentials stored in the environment variable
-    credentials_json_str = os.environ.get('GOOGLE_CREDENTIALS_JSON')
-    if not credentials_json_str:
-        print("ERROR: GOOGLE_CREDENTIALS_JSON environment variable not set.")
-        return None
-    
+    # ... (authentication code remains the same) ...
     try:
-        credentials_info = json.loads(credentials_json_str)
+        credentials_info = json.loads(os.environ.get('GOOGLE_CREDENTIALS_JSON'))
         storage_client = storage.Client.from_service_account_info(credentials_info)
-    except json.JSONDecodeError:
-        print("ERROR: Could not decode GOOGLE_CREDENTIALS_JSON.")
-        return None
     except Exception as e:
         print(f"Error creating GCS client: {e}")
         return None
@@ -131,16 +123,19 @@ def upload_to_gcs(file_to_upload, bucket_name):
     
     try:
         blob.upload_from_file(file_to_upload, content_type=file_to_upload.content_type)
-        return blob.public_url
+        # --- CHANGE HERE ---
+        # Instead of returning the public URL, return just the filename.
+        # This is what we will store in our database.
+        return unique_filename 
     except Exception as e:
         print(f"Error uploading to GCS: {e}")
         traceback.print_exc()
         return None
 
 # --- GCS Deletion Helper ---
-def delete_from_gcs(image_url, bucket_name):
-    """Deletes a file from a given GCS bucket based on its public URL."""
-    if not image_url or not GCS_BUCKET_NAME:
+def delete_from_gcs(blob_name, bucket_name): # <-- Argument changed from image_url to blob_name
+    """Deletes a file from a given GCS bucket based on its blob name.""" # <-- Docstring updated
+    if not blob_name or not GCS_BUCKET_NAME: # <-- Check blob_name
         return
 
     try:
@@ -153,18 +148,17 @@ def delete_from_gcs(image_url, bucket_name):
         storage_client = storage.Client.from_service_account_info(credentials_info)
         bucket = storage_client.bucket(bucket_name)
 
-        # Extract the blob name from the full URL
-        # Assumes URL format: https://storage.googleapis.com/BUCKET_NAME/BLOB_NAME
-        blob_name = image_url.split(f'/{bucket_name}/')[-1]
-        
+        # --- CHANGE HERE ---
+        # We no longer need to parse the URL. We directly use the blob_name.
         blob = bucket.blob(blob_name)
         if blob.exists():
             blob.delete()
             log_activity('gcs_file_deleted', details={'blob_name': blob_name})
+        else:
+            print(f"Blob '{blob_name}' not found for deletion.")
     except Exception as e:
         print(f"Error deleting from GCS: {e}")
-        # Log this error but don't stop the main DB operation
-        log_activity('gcs_delete_error', details={'image_url': image_url, 'error': str(e)})
+        log_activity('gcs_delete_error', details={'blob_name': blob_name, 'error': str(e)})
 
 # --- Main Routes ---
 @app.route('/login', methods=['GET', 'POST'])
@@ -1041,6 +1035,41 @@ def view_activity_log():
     except Exception as e:
         log_activity('error', details={"function": "view_activity_log", "error": str(e)})
         return f"Error fetching activity log: {e}", 500
+    
+# --- Add this new route somewhere in your app.py file ---
+
+@app.route('/images/<path:filename>')
+@login_required
+def serve_private_image(filename):
+    """
+    Generates a temporary signed URL for a private GCS object and redirects to it.
+    """
+    if not GCS_BUCKET_NAME or not GOOGLE_CREDENTIALS_JSON:
+        return "Image serving is not configured.", 500
+
+    try:
+        credentials_info = json.loads(GOOGLE_CREDENTIALS_JSON)
+        storage_client = storage.Client.from_service_account_info(credentials_info)
+        bucket = storage_client.bucket(GCS_BUCKET_NAME)
+        blob = bucket.blob(filename)
+
+        if not blob.exists():
+            return "Image not found.", 404
+            
+        # Generate a signed URL that is valid for 15 minutes.
+        signed_url = blob.generate_signed_url(
+            version="v4",
+            expiration=timedelta(minutes=15),
+            method="GET",
+        )
+        
+        # Redirect the user's browser to the temporary URL.
+        return redirect(signed_url)
+        
+    except Exception as e:
+        log_activity('error', details={"function": "serve_private_image", "error": str(e)})
+        traceback.print_exc()
+        return "Error serving image.", 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5167)), debug=False)
