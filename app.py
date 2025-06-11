@@ -16,6 +16,8 @@ import matplotlib.dates as mdates
 import numpy as np
 from google.cloud import storage
 from werkzeug.utils import secure_filename
+import io
+import base64
 
 app = Flask(__name__)
 
@@ -568,6 +570,7 @@ def view_food_log():
             if not os.path.exists('static'):
                 os.makedirs('static')
             plt.savefig(plot_path)
+            plt.close(fig)
             chart_url = url_for('static', filename='calories_chart.png')
         else:
             chart_url = None
@@ -593,6 +596,91 @@ def collection_page():
         log_activity('error', details={"function": "collection_page", "error": str(e)})
         flash("Error fetching collection.", "error")
         return redirect(url_for('hello'))
+
+@app.route('/collection/dashboard')
+@login_required
+def collection_dashboard():
+    try:
+        conn = get_db()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT * FROM antiques WHERE user_id = 1")
+            items = cur.fetchall()
+
+        if not items:
+            flash("No items in collection to create a dashboard.", "info")
+            return redirect(url_for('collection_page'))
+
+        df = pd.DataFrame(items)
+        df['approximate_value'] = pd.to_numeric(df['approximate_value'], errors='coerce').fillna(0)
+
+        # --- Key Stats ---
+        total_value = df['approximate_value'].sum()
+        total_items = len(df)
+        items_with_value = df[df['approximate_value'] > 0].shape[0]
+        
+        # --- Value by Type ---
+        value_by_type = df.groupby('item_type')['approximate_value'].sum().nlargest(10).sort_values()
+        
+        # --- Value by Period ---
+        value_by_period = df.groupby('period')['approximate_value'].sum().nlargest(10).sort_values()
+
+        # --- Plotting ---
+        plt.style.use('seaborn-v0_8-whitegrid')
+        bg_color = '#FDFDF6'
+        text_color = '#2d3748'
+        bar_color = '#4B0082'
+        
+        # Plot 1: Value by Type
+        fig1, ax1 = plt.subplots(figsize=(10, 6))
+        fig1.patch.set_facecolor(bg_color)
+        ax1.set_facecolor(bg_color)
+        value_by_type.plot(kind='barh', ax=ax1, color=bar_color)
+        ax1.set_title('Top 10 Collection Value by Item Type', fontsize=16, color=text_color, pad=20)
+        ax1.set_xlabel('Total Approximate Value (£)', color=text_color)
+        ax1.set_ylabel('Item Type', color=text_color)
+        ax1.tick_params(colors=text_color)
+        ax1.spines['top'].set_visible(False)
+        ax1.spines['right'].set_visible(False)
+        plt.tight_layout()
+        img1 = io.BytesIO()
+        plt.savefig(img1, format='png', bbox_inches='tight')
+        img1.seek(0)
+        plot_url1 = base64.b64encode(img1.getvalue()).decode()
+        plt.close(fig1)
+
+        # Plot 2: Value by Period
+        fig2, ax2 = plt.subplots(figsize=(10, 6))
+        fig2.patch.set_facecolor(bg_color)
+        ax2.set_facecolor(bg_color)
+        value_by_period.plot(kind='barh', ax=ax2, color=bar_color)
+        ax2.set_title('Top 10 Collection Value by Period', fontsize=16, color=text_color, pad=20)
+        ax2.set_xlabel('Total Approximate Value (£)', color=text_color)
+        ax2.set_ylabel('Period', color=text_color)
+        ax2.tick_params(colors=text_color)
+        ax2.spines['top'].set_visible(False)
+        ax2.spines['right'].set_visible(False)
+        plt.tight_layout()
+        img2 = io.BytesIO()
+        plt.savefig(img2, format='png', bbox_inches='tight')
+        img2.seek(0)
+        plot_url2 = base64.b64encode(img2.getvalue()).decode()
+        plt.close(fig2)
+
+        stats = {
+            "total_value": total_value,
+            "total_items": total_items,
+            "items_with_value": items_with_value,
+            "average_value": total_value / items_with_value if items_with_value > 0 else 0
+        }
+
+        return render_template('collection_dashboard.html', stats=stats, plot_url1=plot_url1, plot_url2=plot_url2)
+
+    except Exception as e:
+        log_activity('error', details={"function": "collection_dashboard", "error": str(e)})
+        flash("Error creating collection dashboard.", "error")
+        traceback.print_exc()
+        return redirect(url_for('collection_page'))
+
 
 @app.route('/collection/item/<int:item_id>')
 @login_required

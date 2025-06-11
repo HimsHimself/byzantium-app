@@ -115,7 +115,7 @@
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                 <span>Food Log</span>
             </a>
-            <a href="{{ url_for('collection_page') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if request.endpoint == 'collection_page' %}active{% endif %}">
+            <a href="{{ url_for('collection_page') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if request.endpoint in ['collection_page', 'collection_dashboard', 'add_collection_item', 'edit_collection_item', 'view_collection_item'] %}active{% endif %}">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h6.375M9 12h6.375M9 17.25h6.375M12 3c-1.12 0-2.096.342-2.844.975-1.017.907-1.656 2.22-1.656 3.652v1.5c0 1.432.639 2.745 1.656 3.652C9.904 13.158 10.88 13.5 12 13.5s2.096-.342 2.844-.975c1.017-.907 1.656-2.22 1.656-3.652v-1.5c0-1.432-.639-2.745-1.656-3.652C14.096 3.342 13.12 3 12 3z"></path></svg>
                 <span>Collection</span>
             </a>
@@ -147,6 +147,18 @@
         </header>
 
         <main class="flex-1 p-6 md:p-8 overflow-y-auto">
+             {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="mb-4">
+                    {% for category, message in messages %}
+                        <div class="px-4 py-3 rounded-md relative {{ 'bg-green-100 border-green-400 text-green-700' if category == 'success' else 'bg-red-100 border-red-400 text-red-700' if category == 'error' else 'bg-blue-100 border-blue-400 text-blue-700' }}" role="alert">
+                            <span class="block sm:inline">{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+            
              {% block content %}
             <div class="content-card p-6 md:p-8">
                 <h2 class="text-2xl font-semibold text-slate-800 mb-6">Welcome to your Byzantium Dashboard</h2>
@@ -213,6 +225,11 @@
             const activeLink = document.querySelector('.sidebar-link.active span');
             if (activeLink && pageTitleElement) {
                 pageTitleElement.textContent = activeLink.textContent;
+                if(activeLink.textContent.trim() === 'Collection') {
+                    if (window.location.pathname.includes('dashboard')) {
+                        pageTitleElement.textContent = 'Collection Dashboard';
+                    }
+                }
             } else if (pageTitleElement && document.title) {
                 if (window.location.pathname.includes('/notes') || window.location.pathname.includes('/note/')) {
                     pageTitleElement.textContent = "Notes";
