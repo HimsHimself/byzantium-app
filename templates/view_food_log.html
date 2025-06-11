@@ -1,51 +1,52 @@
 {% extends "index.html" %}
 
 {% block content %}
-<div class="content-card rounded-lg p-6 md:p-8">
-    <div class="flex justify-between items-center mb-6">
-        <h2 class="text-2xl font-semibold text-slate-800">
-            Food Log History
-        </h2>
-        <a href="{{ url_for('food_log_page') }}" class="text-sm font-semibold text-slate-600 hover:text-purple-700 transition-colors duration-200">
-            &larr; Back to Logging
-        </a>
-    </div>
+{# FIX: Padding is removed from the main card and applied to children to fix the sticky header gap. #}
+<div class="content-card rounded-lg">
+    <div class="p-6 md:p-8">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-semibold text-slate-800">
+                Food Log History
+            </h2>
+            <a href="{{ url_for('food_log_page') }}" class="text-sm font-semibold text-slate-600 hover:text-purple-700 transition-colors duration-200">
+                &larr; Back to Logging
+            </a>
+        </div>
 
-    {% if today_total is not none %}
-    <div class="p-4 bg-purple-50 border border-purple-200 rounded-lg text-center mb-8 shadow">
-        <h3 class="text-base font-medium text-slate-700 tracking-wide uppercase">Today's Total</h3>
-        <p class="text-4xl font-bold byzantine-purple-text mt-1">
-            {{ today_total }}
-            <span class="text-xl font-normal text-slate-500">/ 2000 kcal</span>
-        </p>
-    </div>
-    {% endif %}
+        {% if today_total is not none %}
+        <div class="p-4 bg-purple-50 border border-purple-200 rounded-lg text-center mb-8 shadow">
+            <h3 class="text-base font-medium text-slate-700 tracking-wide uppercase">Today's Total</h3>
+            <p class="text-4xl font-bold byzantine-purple-text mt-1">
+                {{ today_total }}
+                <span class="text-xl font-normal text-slate-500">/ 2000 kcal</span>
+            </p>
+        </div>
+        {% endif %}
 
-    {% if chart_url %}
-    <div class="mb-8">
-        <img src="{{ chart_url }}?v={{ range(1, 1000) | random }}" alt="Calories Chart" class="w-full h-auto rounded-lg shadow-md">
+        {% if chart_url %}
+        <div class="mb-8">
+            <img src="{{ chart_url }}?v={{ range(1, 1000) | random }}" alt="Calories Chart" class="w-full h-auto rounded-lg shadow-md">
+        </div>
+        {% endif %}
     </div>
-    {% endif %}
 
     {% if logs %}
-        <div class="md:hidden">
+        <div class="md:hidden px-4 pb-6">
             {% for group in logs | groupby('log_date') | reverse %}
                 <div class="day-group mb-6">
-                    <h3 class="text-base font-semibold text-slate-600 bg-slate-100 px-3 py-2 rounded-md mb-3 sticky top-0 z-10">
+                    <h3 class="text-base font-semibold text-slate-600 bg-slate-100 px-3 py-2 rounded-md mb-2 sticky top-0 z-10">
                         Logs for {{ group.grouper.strftime('%A, %d %B %Y') }}
                     </h3>
-                    <div class="space-y-2">
-                    {% for log in group.list %}
-                        {# FIX: Redesigned card to a single line with the requested element order. #}
-                        <div class="rounded-md border border-slate-200 bg-white shadow-sm p-2">
-                            <div class="flex items-baseline space-x-3 text-sm">
-                                <p class="text-xs text-slate-500 flex-shrink-0">{{ log.log_time.strftime('%H:%M') }}</p>
-                                <p class="text-xs font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-full flex-shrink-0">{{ log.log_type }}</p>
-                                <p class="font-semibold text-slate-800 w-10 text-right flex-shrink-0">{{ log.calories if log.calories is not none else '—' }}</p>
-                                <p class="font-medium text-purple-700 truncate">{{ log.description }}</p>
-                            </div>
-                        </div>
-                    {% endfor %}
+                    {# FIX: The entire list is now a single CSS Grid for perfect column alignment. #}
+                    {# This robust structure prevents page overflow, fixing the "massive image" issue. #}
+                    <div class="grid grid-cols-[auto,auto,auto,1fr] gap-x-3 gap-y-0 text-sm items-baseline">
+                        {% for log in group.list %}
+                            {# Each data point is now a cell in the grid. A bottom border creates the row separator. #}
+                            <p class="text-xs text-slate-500 border-b border-slate-100 py-2.5">{{ log.log_time.strftime('%H:%M') }}</p>
+                            <p class="text-xs font-medium text-slate-600 border-b border-slate-100 py-2.5">{{ log.log_type }}</p>
+                            <p class="font-semibold text-slate-800 text-right border-b border-slate-100 py-2.5">{{ log.calories if log.calories is not none else '—' }}</p>
+                            <p class="font-medium text-purple-700 truncate border-b border-slate-100 py-2.5">{{ log.description }}</p>
+                        {% endfor %}
                     </div>
                 </div>
             {% endfor %}
