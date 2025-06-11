@@ -2,6 +2,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Byzantium Dashboard</title>
+    <!-- FAVICON: A simple SVG icon that matches your site's theme -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22 fill=%22%234B0082%22>†</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -130,8 +132,11 @@
         </div>
     </aside>
 
+    <!-- MENU FIX: Added a clickable overlay that appears when the mobile menu is open. -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-20 hidden md:hidden"></div>
+
     <div class="flex-1 flex flex-col md:ml-64">
-        <header class="header p-4 shadow-sm">
+        <header class="header p-4 shadow-sm sticky top-0 z-10">
             <div class="flex justify-between items-center">
                 <button id="sidebarToggle" class="md:hidden text-slate-600 hover:text-purple-700 focus:outline-none">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
@@ -174,14 +179,36 @@
     </div>
 
     <script>
-        const sidebar = document.querySelector('aside');
-        const sidebarToggle = document.getElementById('sidebarToggle');
-        if (sidebarToggle) {
-            sidebarToggle.addEventListener('click', () => {
-                sidebar.classList.toggle('-translate-x-full');
-            });
-        }
+        // MENU FIX: The script is updated to handle the new overlay and provide a better closing mechanism.
         document.addEventListener('DOMContentLoaded', () => {
+            const sidebar = document.querySelector('aside');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+            const openSidebar = () => {
+                sidebar.classList.remove('-translate-x-full');
+                sidebarOverlay.classList.remove('hidden');
+            };
+
+            const closeSidebar = () => {
+                sidebar.classList.add('-translate-x-full');
+                sidebarOverlay.classList.add('hidden');
+            };
+
+            if (sidebarToggle && sidebarOverlay) {
+                sidebarToggle.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevents the click from closing the menu immediately.
+                    if (sidebar.classList.contains('-translate-x-full')) {
+                        openSidebar();
+                    } else {
+                        closeSidebar();
+                    }
+                });
+
+                sidebarOverlay.addEventListener('click', closeSidebar);
+            }
+
+            // This part of the script updates the page title based on the active link.
             const pageTitleElement = document.getElementById('pageTitle');
             const activeLink = document.querySelector('.sidebar-link.active span');
             if (activeLink && pageTitleElement) {
