@@ -524,7 +524,7 @@ def view_food_log():
             cur.execute("SELECT * FROM food_log WHERE user_id = 1 AND log_time >= %s ORDER BY log_time DESC", (thirty_days_ago,))
             logs = cur.fetchall()
 
-            # FIX: Add a date-only attribute to each log for easier grouping in the template.
+            # Add a date-only attribute to each log for easier grouping in the template.
             for log in logs:
                 if log.get('log_time'):
                     log['log_date'] = log['log_time'].date()
@@ -536,7 +536,8 @@ def view_food_log():
             """
             cur.execute(sql_today_calories, (today_london,))
             result = cur.fetchone()
-            if result and result['total'] is not none:
+            # FIX: Changed 'none' to 'None'
+            if result and result['total'] is not None:
                 today_total_calories = int(result['total'])
         
         if logs:
@@ -587,7 +588,7 @@ def view_food_log():
         flash("Error fetching food log history.", "error")
         return redirect(url_for('food_log_page'))
     
-    
+
 # --- Collection Log Routes ---
 @app.route('/collection')
 @login_required
