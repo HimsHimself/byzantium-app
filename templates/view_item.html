@@ -2,11 +2,11 @@
 
 {% block content %}
 <div class="content-card rounded-lg p-6 md:p-8">
-    <div class="flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
+    <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6 border-b border-slate-200 pb-4">
         <h2 class="text-2xl font-semibold text-slate-800">
             {{ item.name }}
         </h2>
-        <div class="flex items-center space-x-4">
+        <div class="flex items-center flex-shrink-0 space-x-4">
             <a href="{{ url_for('collection_page') }}" class="text-sm font-semibold text-slate-600 hover:text-purple-700">
                 &larr; Back to Collection
             </a>
