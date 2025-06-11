@@ -28,28 +28,21 @@
     {% endif %}
 
     {% if logs %}
-        {# FIX: Removed space-y-* from this container to fix the gap issue. #}
         <div class="md:hidden">
             {% for group in logs | groupby('log_date') | reverse %}
-                {# FIX: Added margin-bottom here to correctly space out day groups. #}
                 <div class="day-group mb-6">
-                    <h3 class="text-base font-semibold text-slate-600 bg-slate-100/75 px-3 py-2 rounded-md mb-3 sticky top-16 backdrop-blur-sm z-10">
+                    <h3 class="text-base font-semibold text-slate-600 bg-slate-100 px-3 py-2 rounded-md mb-3 sticky top-0 z-10">
                         Logs for {{ group.grouper.strftime('%A, %d %B %Y') }}
                     </h3>
-                    {# FIX: Reduced space between cards to make the list more dense. #}
                     <div class="space-y-2">
                     {% for log in group.list %}
-                        {# FIX: Complete redesign of the card to be a single, compact line. #}
-                        <div class="rounded-md border border-slate-200 bg-white shadow-sm">
-                            <div class="p-2 flex items-center justify-between text-sm">
-                                <p class="flex-grow truncate mr-3">
-                                    <span class="font-medium text-purple-700">{{ log.description }}</span>
-                                </p>
-                                <div class="flex items-center space-x-3 sm:space-x-4 flex-shrink-0">
-                                    <span class="text-slate-500 text-xs w-14 sm:w-16 truncate text-center">{{ log.log_type }}</span>
-                                    <span class="font-medium text-slate-800 w-10 text-right pr-1">{{ log.calories if log.calories is not none else 'N/A' }}</span>
-                                    <span class="text-xs text-slate-500 w-10 text-right">{{ log.log_time.strftime('%H:%M') }}</span>
-                                </div>
+                        {# FIX: Redesigned card to a single line with the requested element order. #}
+                        <div class="rounded-md border border-slate-200 bg-white shadow-sm p-2">
+                            <div class="flex items-baseline space-x-3 text-sm">
+                                <p class="text-xs text-slate-500 flex-shrink-0">{{ log.log_time.strftime('%H:%M') }}</p>
+                                <p class="text-xs font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-full flex-shrink-0">{{ log.log_type }}</p>
+                                <p class="font-semibold text-slate-800 w-10 text-right flex-shrink-0">{{ log.calories if log.calories is not none else '—' }}</p>
+                                <p class="font-medium text-purple-700 truncate">{{ log.description }}</p>
                             </div>
                         </div>
                     {% endfor %}
