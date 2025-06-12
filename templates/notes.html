@@ -1,6 +1,7 @@
 {% extends "index.html" %}
 
 {% block content %}
+<<<<<<< HEAD
 {# --- Recursive Macro to render the folder tree --- #}
 {% macro render_folder_tree(folders, current_folder, breadcrumb_ids, notes, current_note) %}
   <ul class="space-y-1">
@@ -89,10 +90,122 @@
                 <h4 class="text-sm font-semibold text-slate-500 mb-2 mt-4 pt-4 border-t">Orphaned Notes</h4>
                 <ul class="space-y-1">
                     {% for note in orphaned_notes %}<li class="note-list-item {% if current_note and current_note.id == note.id %}note-active{% endif %}"><a href="{{ url_for('view_note', note_id=note.id) }}">{{ note.title }}</a></li>{% endfor %}
+=======
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tributejs@5.1.3/dist/tribute.css">
+<style>
+    .snql-link {
+        color: var(--imperial-purple, #4B0082);
+        background-color: #f4f2f7;
+        padding: 1px 4px;
+        border-radius: 4px;
+        font-weight: 500;
+        text-decoration: none;
+        border-bottom: 1px solid var(--byzantine-gold, #C59B08);
+    }
+    .snql-link:hover {
+        background-color: #e9e4f0;
+    }
+    .snql-broken-link {
+        color: #992c2c;
+        background-color: #fee2e2;
+        padding: 1px 4px;
+        border-radius: 4px;
+        text-decoration: line-through;
+        cursor: not-allowed;
+    }
+    .tribute-container {
+        border: 1px solid var(--byzantine-border);
+        border-radius: 0.5rem;
+        box-shadow: 0 5px 15px -3px rgb(0 0 0 / 0.07), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        background-color: #ffffff;
+    }
+    .tribute-container ul {
+        padding: 0;
+        margin: 0;
+    }
+    .tribute-container li {
+        padding: 0.5rem 1rem;
+        cursor: pointer;
+    }
+    .tribute-container li.highlight, .tribute-container li:hover {
+        background-color: #f4f2f7;
+        color: var(--imperial-purple, #4B0082);
+    }
+</style>
+
+<div class="content-card p-6 md:p-8">
+    <div class="flex justify-between items-center mb-2">
+        <h2 class="text-2xl font-semibold text-slate-800">
+            {% if current_folder %}
+                Notes in: <span class="byzantine-purple-text">{{ current_folder.name }}</span>
+            {% else %}
+                Notes Management
+            {% endif %}
+        </h2>
+    </div>
+    {% if current_folder %}
+    <div class="mb-6 text-sm">
+        <a href="{{ url_for('notes_page') }}" 
+           class="text-slate-500 hover:underline">
+           &larr; Back to Root
+        </a>
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+        <div class="md:col-span-4 space-y-6">
+            <div class="p-4 border border-slate-200 rounded-md bg-slate-50/50 shadow-sm">
+                <h3 class="text-lg font-medium text-slate-700 mb-3">Folders</h3>
+                {% if folders %}
+                    <ul class="space-y-1">
+                        {% for folder in folders %}
+                            <li class="flex justify-between items-center group">
+                                <a href="{{ url_for('notes_page', folder_id=folder.id) }}"
+                                   class="flex-grow block p-2 rounded-md hover:bg-purple-50 {% if current_folder and current_folder.id == folder.id %}bg-purple-100 text-purple-700 font-semibold{% else %}text-slate-600{% endif %}">
+                                    <svg class="w-5 h-5 inline-block mr-2 -mt-1 text-yellow-600" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path></svg>
+                                    {{ folder.name }}
+                                </a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-sm text-slate-500 italic">No folders here yet.</p>
+                {% endif %}
+
+                <form method="POST" action="{{ url_for('add_folder') }}" class="mt-4">
+                    <input type="hidden" name="parent_folder_id" value="{{ current_folder.id if current_folder else '' }}">
+                    <div class="flex">
+                        <input type="text" name="folder_name" placeholder="New Folder Name" required
+                               class="form-input flex-grow p-2 text-sm rounded-l-md">
+                        <button type="submit" class="btn-primary text-sm px-3 py-2 rounded-r-md">Add</button>
+                    </div>
+                </form>
+            </div>
+            
+            {% if not current_folder and orphaned_notes %}
+            <div class="p-4 border border-slate-200 rounded-md bg-slate-50/50 shadow-sm">
+                <h3 class="text-lg font-medium text-slate-700 mb-3">Orphaned Notes</h3>
+                <ul class="space-y-3">
+                    {% for note in orphaned_notes %}
+                        <li class="text-sm">
+                            <a href="{{ url_for('view_note', note_id=note.id) }}" class="text-slate-700 hover:text-purple-700">{{ note.title }}</a>
+                            <form method="POST" action="{{ url_for('move_note', note_id=note.id) }}" class="mt-1 flex gap-2">
+                                <select name="folder_id" class="form-input p-1 text-xs rounded-md flex-grow">
+                                    <option value="">Move to folder...</option>
+                                    {% for folder in all_folders %}
+                                    <option value="{{ folder.id }}">{{ folder.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn-primary text-xs px-2 py-1 rounded-md">Move</button>
+                            </form>
+                        </li>
+                    {% endfor %}
+>>>>>>> parent of 5adfc81 (Notes interface refreshed)
                 </ul>
             </div>
             {% endif %}
         </div>
+<<<<<<< HEAD
         <div class="pane-footer">
             <form method="POST" action="{{ url_for('add_folder') }}" class="flex gap-2">
                 <input type="hidden" name="parent_folder_id" value="{{ current_folder.id if current_folder else '' }}">
@@ -109,17 +222,101 @@
                     <span class="truncate pr-4">{{ current_note.title }}</span>
                     <div>
                         <button id="save-note-btn" class="btn-primary text-sm font-semibold px-4 py-1 rounded-md">Save</button>
+=======
+
+        <div class="md:col-span-8">
+            <div class="p-4 border border-slate-200 rounded-md bg-slate-50/50 shadow-sm mb-6">
+                <h3 class="text-lg font-medium text-slate-700 mb-3">
+                    Notes {% if current_folder %} in <span class="font-normal byzantine-purple-text">{{ current_folder.name }}</span> {% endif %}
+                </h3>
+                {% if notes_in_folder %}
+                    <ul class="space-y-1">
+                        {% for note in notes_in_folder %}
+                             <li class="flex justify-between items-center group">
+                                <a href="{{ url_for('view_note', note_id=note.id) }}" 
+                                   class="flex-grow block p-2 text-slate-600 rounded-md hover:bg-purple-50 {% if current_note and current_note.id == note.id %}bg-purple-100 text-purple-700 font-semibold{% endif %}">
+                                   <svg class="w-4 h-4 inline-block mr-2 -mt-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    {{ note.title }}
+                                </a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% elif current_folder %}
+                     <p class="text-sm text-slate-500 italic">No notes in this folder yet.</p>
+                {% else %}
+                    <p class="text-sm text-slate-500 italic">Select a folder to view its notes or create a new one.</p>
+                {% endif %}
+
+                {% if current_folder %}
+                <form method="POST" action="{{ url_for('add_note', folder_id=current_folder.id) }}" class="mt-4">
+                    <div class="flex">
+                        <input type="text" name="note_title" placeholder="New Note Title in {{current_folder.name}}" required class="form-input flex-grow p-2 text-sm rounded-l-md">
+                        <button type="submit" class="btn-primary text-sm px-3 py-2 rounded-r-md">Add Note</button>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+
+            {% if current_note %}
+            <div class="p-4 border border-slate-200 rounded-lg bg-white shadow-sm">
+                 <form method="POST" action="{{ url_for('update_note', note_id=current_note.id) }}">
+                    <label for="note_content" class="text-xs text-slate-500 block mb-1">Content (use [[Note Title]] to create links)</label>
+                    <textarea id="note_content" name="note_content" rows="15" class="w-full p-3 form-input rounded-md text-sm" style="color: #334155; font-family: monospace;">{{ content_for_editing if content_for_editing is not none else '' }}</textarea>
+                    
+                    <div class="mt-4 flex justify-end items-center">
+                        <button type="submit" class="btn-primary text-sm px-4 py-2 rounded-md">Save Changes</button>
+                    </div>
+                </form>
+                <hr class="my-6 border-slate-200">
+                <div>
+                    <h4 class="font-semibold text-slate-700 mb-2">Rendered Note</h4>
+                    <div class="prose prose-sm max-w-none p-4 bg-slate-50 rounded-md border border-slate-200 min-h-[50px]">
+                        {{ content_as_html | safe }}
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
+                        <div>
+                            <h4 class="font-semibold text-slate-700 mb-2">Linked From (Backlinks)</h4>
+                            {% if backlinks %}
+                                <ul class="list-disc list-inside text-sm space-y-1">
+                                    {% for link in backlinks %}
+                                        <li><a href="{{ url_for('view_note', note_id=link.id) }}" class="text-purple-600 hover:underline">{{ link.title }}</a></li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                <p class="text-sm text-slate-500 italic">No notes link to this one.</p>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-slate-700 mb-2">Links To (Outgoing)</h4>
+                             {% if outgoing_links %}
+                                <ul class="list-disc list-inside text-sm space-y-1">
+                                    {% for link in outgoing_links %}
+                                        <li><a href="{{ url_for('view_note', note_id=link.id) }}" class="text-purple-600 hover:underline">{{ link.title }}</a></li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                <p class="text-sm text-slate-500 italic">This note doesn't link to any others.</p>
+                            {% endif %}
+                        </div>
+>>>>>>> parent of 5adfc81 (Notes interface refreshed)
                     </div>
                 </div>
                 <div class="pane-content">
                     <div id="editorjs-container" class="prose max-w-none"></div>
                 </div>
             </div>
+<<<<<<< HEAD
         {% else %}
             <div class="flex items-center justify-center text-center text-slate-500 h-full border-2 border-dashed rounded-lg">
                 <p>Select a note from the library to begin editing.</p>
+=======
+            {% elif not current_folder %}
+             <div class="p-4 border border-dashed border-slate-300 rounded-md bg-slate-50/30 text-center">
+                <p class="text-slate-500">Select or create a folder to manage notes.</p>
+>>>>>>> parent of 5adfc81 (Notes interface refreshed)
             </div>
-        {% endif %}
+            {% endif %}
+        </div>
     </div>
 </div>
 
@@ -129,6 +326,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+<<<<<<< HEAD
     {% if current_note and content_as_json_string %}
     const editor = new EditorJS({
         holder: 'editorjs-container',
@@ -182,6 +380,38 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }).catch((error) => {
             console.log('Saving failed: ', error);
+=======
+    const noteContentElement = document.getElementById('note_content');
+    if (noteContentElement) {
+        const tribute = new Tribute({
+            trigger: '[[',
+            values: function(text, cb) {
+                fetch(`/api/notes/search?q=${encodeURIComponent(text)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const suggestions = data.map(title => ({ key: title, value: title }));
+                        cb(suggestions);
+                    })
+                    .catch(error => cb([]));
+            },
+            selectTemplate: function(item) {
+                if (typeof item === 'undefined') return null;
+                return `[[${item.original.value}]]`;
+            },
+            menuItemTemplate: function(item) {
+                return item.string;
+            },
+            noMatchTemplate: function () {
+                return '<li class="no-match">No matches found</li>';
+            },
+            searchOpts: {
+                pre: '<span>',
+                post: '</span>',
+                skip: true 
+            },
+            allowSpaces: true,
+            closeOnScroll: true,
+>>>>>>> parent of 5adfc81 (Notes interface refreshed)
         });
     });
     {% endif %}
