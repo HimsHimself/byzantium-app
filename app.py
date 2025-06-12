@@ -43,7 +43,7 @@ if not GCS_BUCKET_NAME or not GOOGLE_CREDENTIALS_JSON:
     print("[WARNING] GCS environment variables not set. Image uploads for the collection will not work.")
 
 # --- Markdown Renderer ---
-md = MarkdownIt()
+md = MarkdownIt("commonmark", {"html": True})
 
 # --- In-memory store for background job status ---
 oracle_jobs = {}
@@ -593,7 +593,7 @@ def api_render_markdown():
     """API endpoint to render markdown for the live preview."""
     data = request.json
     raw_content = data.get('content', '')
-    
+
     # We need a db cursor to resolve SNQL links
     conn = get_db()
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -603,14 +603,13 @@ def api_render_markdown():
         referenced_titles = {s.strip() for s in REFERENCE_PATTERN.findall(raw_content) if s.strip()}
         if referenced_titles:
             cur.execute("SELECT guid, title FROM notes WHERE title = ANY(%s)", (list(referenced_titles),))
-            # FIX: The variable is `cur`, not `cursor`.
             found_notes = {note['title']: str(note['guid']) for note in cur.fetchall()}
             for title, guid in found_notes.items():
                 temp_processed_content = re.sub(r'\[\[' + re.escape(title) + r'\]\](?!\])', f"snql-ref:{guid}", temp_processed_content)
-        
+
         # Now render the processed content to HTML
         html_output = render_snql_to_html(cur, temp_processed_content)
-        
+
     return jsonify({'html': html_output})
 
 # --- Food Log Routes ---
