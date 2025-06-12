@@ -103,90 +103,69 @@ def login_required(f):
 # --- SNQL Helper Functions ---
 REFERENCE_PATTERN = re.compile(r'\[\[(.*?)\]\]')
 SNQL_REF_PATTERN = re.compile(r'snql-ref:([0-9a-fA-F\-]{36})')
-SNQL_BROKEN_REF_PATTERN = re.compile(r'snql-ref-broken:(.*?)(?=\s|$)')
+SNQL_BROKEN_REF_PATTERN = re.compile(r'snql-ref-broken:(.*?)(?=\s|\[\[|$$)')
 
-def convert_db_content_to_raw_for_editing(db_content):
-    """Converts content from DB format (snql-ref:<guid>) back to user-facing format ([[Title]])."""
+def convert_db_content_to_raw_for_editing(cursor, db_content):
     if not db_content:
         return ""
     
-    conn = get_db()
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        # Find all GUIDs in the content
-        guids_to_find = SNQL_REF_PATTERN.findall(db_content)
-        guid_to_title = {}
-        if guids_to_find:
-            cur.execute("SELECT guid, title FROM notes WHERE guid = ANY(%s)", (guids_to_find,))
-            for row in cur.fetchall():
-                guid_to_title[str(row['guid'])] = row['title']
+    guids_to_find = SNQL_REF_PATTERN.findall(db_content)
+    guid_to_title = {}
+    if guids_to_find:
+        cursor.execute("SELECT guid, title FROM notes WHERE guid = ANY(%s)", (list(set(guids_to_find)),))
+        for row in cursor.fetchall():
+            guid_to_title[str(row['guid'])] = row['title']
 
-    # Replace snql-ref:<guid> with [[Title]]
     def replace_guid(match):
         guid = match.group(1)
         title = guid_to_title.get(guid, 'Unknown Note')
         return f"[[{title}]]"
     
     raw_content = SNQL_REF_PATTERN.sub(replace_guid, db_content)
-
-    # Replace snql-ref-broken:<Title> with [[Title]]
     raw_content = SNQL_BROKEN_REF_PATTERN.sub(lambda m: f"[[{m.group(1)}]]", raw_content)
-
     return raw_content
 
-def process_and_update_note_content(note_id, raw_content):
-    """Parses raw content for [[Title]] refs, updates references table, and returns storable content."""
-    conn = get_db()
-    
-    referenced_titles = REFERENCE_PATTERN.findall(raw_content)
+def process_and_update_note_content(cursor, note_id, raw_content):
+    conn = cursor.connection
+    referenced_titles = {s.strip() for s in REFERENCE_PATTERN.findall(raw_content) if s.strip()}
     target_note_ids = set()
     processed_content = raw_content
-    
-    # Using a cursor to find all notes at once to be efficient
+
     if referenced_titles:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT id, guid, title FROM notes WHERE title = ANY(%s)", (list(set(referenced_titles)),))
-            found_notes = {note['title']: {'id': note['id'], 'guid': str(note['guid'])} for note in cur.fetchall()}
-        
-        # Replace titles with SNQL refs and collect target IDs
-        for title in set(referenced_titles):
+        cursor.execute("SELECT id, guid, title FROM notes WHERE title = ANY(%s)", (list(referenced_titles),))
+        found_notes = {note['title']: {'id': note['id'], 'guid': str(note['guid'])} for note in cursor.fetchall()}
+
+        for title in referenced_titles:
             if title in found_notes:
                 note_info = found_notes[title]
                 target_note_ids.add(note_info['id'])
-                # Use a function in sub to avoid issues with special characters in titles
                 processed_content = re.sub(r'\[\[' + re.escape(title) + r'\]\]', f"snql-ref:{note_info['guid']}", processed_content)
             else:
-                 # Mark as a broken link
-                processed_content = re.sub(r'\[\[' + re.escape(title) + r'\]\]', f"snql-ref-broken:{title}", processed_content)
+                # Create a new orphaned note
+                cursor.execute("INSERT INTO notes (title, content, folder_id, user_id, created_at, updated_at) VALUES (%s, %s, %s, 1, NOW(), NOW()) RETURNING id, guid", (title, '', None))
+                new_note_id, new_note_guid = cursor.fetchone()
+                target_note_ids.add(new_note_id)
+                processed_content = re.sub(r'\[\[' + re.escape(title) + r'\]\]', f"snql-ref:{new_note_guid}", processed_content)
+                log_activity('note_created_from_link', details={'note_title': title, 'new_note_id': new_note_id, 'source_note_id': note_id})
 
-
-    # Update the database in a single transaction
-    with conn.cursor() as cur:
-        # 1. Update the note's content
-        cur.execute("UPDATE notes SET content = %s, updated_at = NOW() WHERE id = %s", (processed_content, note_id))
-        
-        # 2. Clear old references from this note
-        cur.execute("DELETE FROM note_references WHERE source_note_id = %s", (note_id,))
-        
-        # 3. Insert new references
-        if target_note_ids:
-            # psycopg2 can adapt a list of tuples for executemany
-            args_list = [(note_id, target_id) for target_id in target_note_ids]
-            cur.executemany("INSERT INTO note_references (source_note_id, target_note_id) VALUES (%s, %s) ON CONFLICT DO NOTHING", args_list)
+    cursor.execute("UPDATE notes SET content = %s, updated_at = NOW() WHERE id = %s", (processed_content, note_id))
+    cursor.execute("DELETE FROM note_references WHERE source_note_id = %s", (note_id,))
+    if target_note_ids:
+        args_list = [(note_id, target_id) for target_id in target_note_ids]
+        cursor.executemany("INSERT INTO note_references (source_note_id, target_note_id) VALUES (%s, %s) ON CONFLICT DO NOTHING", args_list)
     conn.commit()
 
-def render_snql_content_as_html(db_content):
-    """Converts stored content with SNQL refs into displayable HTML with clickable links."""
+
+def render_snql_content_as_html(cursor, db_content):
     if not db_content:
         return ""
-
-    conn = get_db()
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        guids_to_find = SNQL_REF_PATTERN.findall(db_content)
-        guid_to_note = {}
-        if guids_to_find:
-            cur.execute("SELECT id, guid, title FROM notes WHERE guid = ANY(%s)", (guids_to_find,))
-            for row in cur.fetchall():
-                guid_to_note[str(row['guid'])] = {'id': row['id'], 'title': row['title']}
+    
+    guids_to_find = SNQL_REF_PATTERN.findall(db_content)
+    guid_to_note = {}
+    if guids_to_find:
+        cursor.execute("SELECT id, guid, title FROM notes WHERE guid = ANY(%s)", (list(set(guids_to_find)),))
+        for row in cursor.fetchall():
+            guid_to_note[str(row['guid'])] = {'id': row['id'], 'title': row['title']}
 
     def replace_guid_with_link(match):
         guid = match.group(1)
@@ -195,16 +174,8 @@ def render_snql_content_as_html(db_content):
             return f'<a href="{url_for("view_note", note_id=note_info["id"])}" class="snql-link">[[{note_info["title"]}]]</a>'
         return '<span class="snql-broken-link">[[Unknown Note]]</span>'
 
-    def replace_broken_with_link(match):
-        title = match.group(1)
-        return f'<span class="snql-broken-link">[[{title}]]</span>'
-
     html_content = SNQL_REF_PATTERN.sub(replace_guid_with_link, db_content)
-    html_content = SNQL_BROKEN_REF_PATTERN.sub(replace_broken_with_link, html_content)
-    
-    # Convert newlines to <br> for simple HTML display
     return html_content.replace('\n', '<br>')
-
 
 # --- GCS Upload Helper (Render-compatible) ---
 def upload_to_gcs(file_to_upload, bucket_name):
@@ -298,7 +269,7 @@ def logout():
 def before_request_handler():
     if 'logged_in' in session and \
        request.endpoint and \
-       request.endpoint not in ['login', 'static', 'logout', 'api_oracle_chat_start', 'api_oracle_chat_status']:
+       request.endpoint not in ['login', 'static', 'logout', 'api_oracle_chat_start', 'api_oracle_chat_status', 'api_notes_search']:
         log_activity('pageview')
 
 @app.route('/')
@@ -350,26 +321,39 @@ def hello():
 def notes_page(folder_id=None):
     try:
         conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        current_folder = None
-        notes_in_current_folder = []
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            current_folder = None
+            notes_in_current_folder = []
+            orphaned_notes = []
+            all_folders = []
+
+            if folder_id:
+                cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
+                current_folder = cur.fetchone()
+                if not current_folder:
+                    flash('Folder not found.', 'error')
+                    return redirect(url_for('notes_page'))
+                cur.execute("SELECT * FROM folders WHERE parent_folder_id = %s AND user_id = 1 ORDER BY name", (folder_id,))
+                folders_to_display = cur.fetchall()
+                cur.execute("SELECT id, title, folder_id, updated_at FROM notes WHERE folder_id = %s AND user_id = 1 ORDER BY updated_at DESC", (folder_id,))
+                notes_in_current_folder = cur.fetchall()
+            else: # Root view
+                cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
+                folders_to_display = cur.fetchall()
+                # Get orphaned notes
+                cur.execute("SELECT id, title, updated_at FROM notes WHERE folder_id IS NULL AND user_id = 1 ORDER BY updated_at DESC")
+                orphaned_notes = cur.fetchall()
+                # Get all folders for the 'move' dropdown
+                cur.execute("SELECT id, name FROM folders WHERE user_id = 1 ORDER BY name")
+                all_folders = cur.fetchall()
         
-        if folder_id:
-            cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
-            current_folder = cur.fetchone()
-            if not current_folder:
-                flash('Folder not found.', 'error')
-                return redirect(url_for('notes_page'))
-            cur.execute("SELECT * FROM folders WHERE parent_folder_id = %s AND user_id = 1 ORDER BY name", (folder_id,))
-            folders_to_display = cur.fetchall()
-            cur.execute("SELECT id, title, folder_id, updated_at FROM notes WHERE folder_id = %s AND user_id = 1 ORDER BY updated_at DESC", (folder_id,))
-            notes_in_current_folder = cur.fetchall()
-        else:
-            cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
-            folders_to_display = cur.fetchall()
-            
-        cur.close()
-        return render_template('notes.html', folders=folders_to_display, notes_in_folder=notes_in_current_folder, current_folder=current_folder, current_note=None)
+            return render_template('notes.html', 
+                                   folders=folders_to_display, 
+                                   notes_in_folder=notes_in_current_folder, 
+                                   current_folder=current_folder, 
+                                   current_note=None,
+                                   orphaned_notes=orphaned_notes,
+                                   all_folders=all_folders)
     except Exception as e:
         traceback.print_exc()
         flash("Error loading notes.", "error")
@@ -497,44 +481,38 @@ def view_note(note_id):
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("SELECT * FROM notes WHERE id = %s AND user_id = 1", (note_id,))
             current_note = cur.fetchone()
-            if not current_note: 
+            if not current_note:
                 flash('Note not found.', 'error')
                 return redirect(url_for('notes_page'))
 
-            # SNQL: Get backlinks
-            cur.execute("""
-                SELECT n.id, n.title 
-                FROM notes n JOIN note_references nr ON n.id = nr.source_note_id 
-                WHERE nr.target_note_id = %s ORDER BY n.title;
-            """, (note_id,))
+            # BUG FIX: Pass the cursor to the helper functions
+            content_for_editing = convert_db_content_to_raw_for_editing(cur, current_note['content'])
+            content_as_html = render_snql_content_as_html(cur, current_note['content'])
+            
+            cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.source_note_id WHERE nr.target_note_id = %s ORDER BY n.title;", (note_id,))
             backlinks = cur.fetchall()
 
-            # SNQL: Get outgoing links
-            cur.execute("""
-                SELECT n.id, n.title 
-                FROM notes n JOIN note_references nr ON n.id = nr.target_note_id 
-                WHERE nr.source_note_id = %s ORDER BY n.title;
-            """, (note_id,))
+            cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.target_note_id WHERE nr.source_note_id = %s ORDER BY n.title;", (note_id,))
             outgoing_links = cur.fetchall()
-
-            # SNQL: Prepare content for display and editing
-            content_for_editing = convert_db_content_to_raw_for_editing(current_note['content'])
-            content_as_html = render_snql_content_as_html(current_note['content'])
-
+            
             folder_id = current_note['folder_id']
-            cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
-            current_folder = cur.fetchone()
+            current_folder = None
+            if folder_id:
+                cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
+                current_folder = cur.fetchone()
             
             parent_id_for_folder_list = current_folder['parent_folder_id'] if current_folder else None
             if parent_id_for_folder_list:
                 cur.execute("SELECT * FROM folders WHERE parent_folder_id = %s AND user_id = 1 ORDER BY name", (parent_id_for_folder_list,))
             else:
-                 cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
+                cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
             folders_to_display = cur.fetchall()
             
-            cur.execute("SELECT id, title, updated_at FROM notes WHERE folder_id = %s AND user_id = 1 ORDER BY updated_at DESC", (folder_id,))
-            notes_in_same_folder = cur.fetchall()
-        
+            notes_in_same_folder = []
+            if folder_id:
+                cur.execute("SELECT id, title, updated_at FROM notes WHERE folder_id = %s AND user_id = 1 ORDER BY updated_at DESC", (folder_id,))
+                notes_in_same_folder = cur.fetchall()
+
         return render_template('notes.html', 
                                folders=folders_to_display, 
                                current_folder=current_folder, 
@@ -546,9 +524,10 @@ def view_note(note_id):
                                outgoing_links=outgoing_links)
     except Exception as e:
         traceback.print_exc()
-        flash("Error viewing note.", "error")
+        flash(f"Error viewing note: {e}", "error")
         log_activity('view_note_error', details={'note_id': note_id, 'error': str(e)})
         return redirect(url_for('notes_page'))
+
 
 @app.route('/note/<int:note_id>/rename', methods=['POST'])
 @login_required
@@ -592,13 +571,14 @@ def update_note(note_id):
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("SELECT title FROM notes WHERE id = %s AND user_id = 1", (note_id,))
             note_data = cur.fetchone()
-            if not note_data: 
+            if not note_data:
                 flash("Note not found.", "error")
                 return redirect(url_for('notes_page'))
-
-        # SNQL: Use the new helper function to process content and update references
-        process_and_update_note_content(note_id, raw_content)
-
+            
+            # Use the helper, passing the cursor
+            process_and_update_note_content(cur, note_id, raw_content)
+        
+        # The helper now handles commit
         log_activity('note_updated', details={'note_id': note_id, 'note_title': note_data['title']})
         flash('Note updated with SNQL references.', 'success')
     except Exception as e:
@@ -607,6 +587,7 @@ def update_note(note_id):
         flash(f"Error updating note: {e}", 'error')
         traceback.print_exc()
     return redirect(redirect_url)
+
 
 @app.route('/note/<int:note_id>/delete', methods=['POST'])
 @login_required
@@ -634,6 +615,46 @@ def delete_note(note_id):
     if folder_note_was_in: 
         return redirect(url_for('notes_page', folder_id=folder_note_was_in))
     return redirect(url_for('notes_page'))
+
+@app.route('/note/<int:note_id>/move', methods=['POST'])
+@login_required
+def move_note(note_id):
+    folder_id_str = request.form.get('folder_id')
+    if not folder_id_str or not folder_id_str.isdigit():
+        flash('Invalid folder selected.', 'error')
+        return redirect(url_for('notes_page'))
+    
+    folder_id = int(folder_id_str)
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE notes SET folder_id = %s WHERE id = %s AND user_id = 1", (folder_id, note_id))
+        conn.commit()
+        flash('Note successfully moved to folder.', 'success')
+        log_activity('note_moved', details={'note_id': note_id, 'target_folder_id': folder_id})
+    except Exception as e:
+        conn.rollback()
+        flash(f'Error moving note: {e}', 'error')
+        log_activity('note_move_error', details={'note_id': note_id, 'error': str(e)})
+
+    return redirect(url_for('notes_page'))
+
+
+# --- API Routes ---
+@app.route('/api/notes/search')
+@login_required
+def api_notes_search():
+    query = request.args.get('q', '')
+    if not query:
+        return jsonify([])
+    
+    conn = get_db()
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # Search for titles that start with the query for better performance and relevance
+        cur.execute("SELECT title FROM notes WHERE title ILIKE %s AND user_id = 1 LIMIT 10", (f"{query}%",))
+        results = cur.fetchall()
+        
+    return jsonify([row['title'] for row in results])
 
 # --- Food Log Routes ---
 @app.route('/food_log', methods=['GET', 'POST'])
