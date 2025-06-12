@@ -92,6 +92,8 @@
 </head>
 <body class="flex h-screen antialiased">
 
+    <div id="toast-container" class="fixed top-5 right-5 z-50 space-y-3 w-80"></div>
+
     <aside class="sidebar w-64 space-y-2 py-4 px-2 fixed inset-y-0 left-0 transform md:translate-x-0 -translate-x-full transition-transform duration-200 ease-in-out z-30 shadow-lg">
         <div class="px-4 py-2 mb-4">
             <a href="{{ url_for('hello') }}" class="text-2xl font-bold byzantine-purple-text">
@@ -103,18 +105,18 @@
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
                 <span>Dashboard</span>
             </a>
-            <a href="{{ url_for('notes_page') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if request.endpoint == 'notes_page' or request.endpoint == 'view_folder_notes' or request.endpoint == 'view_note' %}active{% endif %}">
+            <a href="{{ url_for('notes_page') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if 'notes_page' in request.endpoint or 'note' in request.endpoint %}active{% endif %}">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                 <span>Notes</span>
             </a>
             <a href="{{ url_for('oracle_chat_page') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if request.endpoint == 'oracle_chat_page' %}active{% endif %}">
                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path></svg>
                 <span>Oracle Chat</span> </a>
-            <a href="{{ url_for('food_log_page') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if request.endpoint == 'food_log_page' or request.endpoint == 'view_food_log' %}active{% endif %}">
+            <a href="{{ url_for('food_log_page') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if 'food_log' in request.endpoint %}active{% endif %}">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                 <span>Food Log</span>
             </a>
-            <a href="{{ url_for('collection_page') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if request.endpoint in ['collection_page', 'collection_dashboard', 'add_collection_item', 'edit_collection_item', 'view_collection_item'] %}active{% endif %}">
+            <a href="{{ url_for('collection_page') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if 'collection' in request.endpoint %}active{% endif %}">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h6.375M9 12h6.375M9 17.25h6.375M12 3c-1.12 0-2.096.342-2.844.975-1.017.907-1.656 2.22-1.656 3.652v1.5c0 1.432.639 2.745 1.656 3.652C9.904 13.158 10.88 13.5 12 13.5s2.096-.342 2.844-.975c1.017-.907 1.656-2.22 1.656-3.652v-1.5c0-1.432-.639-2.745-1.656-3.652C14.096 3.342 13.12 3 12 3z"></path></svg>
                 <span>Collection</span>
             </a>
@@ -145,18 +147,6 @@
         </header>
 
         <main class="flex-1 p-6 md:p-8 overflow-y-auto">
-             {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    <div class="mb-4">
-                    {% for category, message in messages %}
-                        <div class="px-4 py-3 rounded-md relative {{ 'bg-green-100 border-green-400 text-green-700' if category == 'success' else 'bg-red-100 border-red-400 text-red-700' if category == 'error' else 'bg-blue-100 border-blue-400 text-blue-700' }}" role="alert">
-                            <span class="block sm:inline">{{ message }}</span>
-                        </div>
-                    {% endfor %}
-                    </div>
-                {% endif %}
-            {% endwith %}
-            
             {% block content %}
             <div class="space-y-8">
                 <div class="p-6 rounded-lg" style="background-image: linear-gradient(to top right, var(--imperial-purple), #6d28d9);">
@@ -274,54 +264,78 @@
     </div>
 
     <script>
-        // MENU FIX: The script is updated to handle the new overlay and provide a better closing mechanism.
+        // --- NEW: Toast Notification Logic ---
+        function createToast(message, category) {
+            const toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) return;
+
+            const toast = document.createElement('div');
+            toast.className = 'flex items-center p-4 text-white rounded-lg shadow-lg transition-all duration-300 transform translate-x-full opacity-0';
+            
+            let bgColor = 'bg-gray-700'; // Default
+            if (category === 'success') bgColor = 'bg-green-600';
+            if (category === 'error') bgColor = 'bg-red-600';
+            if (category === 'info') bgColor = 'bg-blue-600';
+            
+            toast.classList.add(bgColor);
+            toast.innerHTML = `<span>${message}</span>`;
+            toastContainer.appendChild(toast);
+
+            // Animate in
+            setTimeout(() => {
+                toast.classList.remove('translate-x-full', 'opacity-0');
+            }, 100);
+
+            // Animate out and remove after 5 seconds
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+                toast.addEventListener('transitionend', () => toast.remove());
+            }, 5000);
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
+            // --- Process flashed messages into toasts on page load ---
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        createToast("{{ message|e }}", "{{ category }}");
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            // --- Mobile Sidebar Logic ---
             const sidebar = document.querySelector('aside');
             const sidebarToggle = document.getElementById('sidebarToggle');
             const sidebarOverlay = document.getElementById('sidebarOverlay');
 
-            const openSidebar = () => {
-                sidebar.classList.remove('-translate-x-full');
-                sidebarOverlay.classList.remove('hidden');
-            };
-
-            const closeSidebar = () => {
-                sidebar.classList.add('-translate-x-full');
-                sidebarOverlay.classList.add('hidden');
-            };
-
-            if (sidebarToggle && sidebarOverlay) {
+            if (sidebarToggle) {
+                const openSidebar = () => {
+                    sidebar.classList.remove('-translate-x-full');
+                    sidebarOverlay.classList.remove('hidden');
+                };
+                const closeSidebar = () => {
+                    sidebar.classList.add('-translate-x-full');
+                    sidebarOverlay.classList.add('hidden');
+                };
                 sidebarToggle.addEventListener('click', (e) => {
-                    e.stopPropagation(); // Prevents the click from closing the menu immediately.
-                    if (sidebar.classList.contains('-translate-x-full')) {
-                        openSidebar();
-                    } else {
-                        closeSidebar();
-                    }
+                    e.stopPropagation();
+                    if (sidebar.classList.contains('-translate-x-full')) openSidebar();
+                    else closeSidebar();
                 });
-
                 sidebarOverlay.addEventListener('click', closeSidebar);
             }
 
-            // This part of the script updates the page title based on the active link.
+            // --- Dynamic Page Title Logic ---
             const pageTitleElement = document.getElementById('pageTitle');
             const activeLink = document.querySelector('.sidebar-link.active span');
-            if (activeLink && pageTitleElement) {
-                pageTitleElement.textContent = activeLink.textContent;
-                if(activeLink.textContent.trim() === 'Collection') {
-                    if (window.location.pathname.includes('dashboard')) {
-                        pageTitleElement.textContent = 'Collection Dashboard';
-                    }
-                }
-            } else if (pageTitleElement && document.title) {
-                if (window.location.pathname.includes('/notes') || window.location.pathname.includes('/note/')) {
-                    pageTitleElement.textContent = "Notes";
-                } else if (window.location.pathname.includes('/oracle_chat')) {
-                    pageTitleElement.textContent = "Oracle Chat";
-                } else if (document.title.startsWith("Byzantium")) {
-                     pageTitleElement.textContent = document.title.substring(10);
+            if (pageTitleElement) {
+                 if (activeLink) {
+                    pageTitleElement.textContent = activeLink.textContent;
                 } else {
-                    pageTitleElement.textContent = document.title;
+                    // Fallback for pages without an active link in the main nav
+                    if (window.location.pathname.includes('/notes') || window.location.pathname.includes('/note/')) {
+                        pageTitleElement.textContent = "Notes";
+                    }
                 }
             }
         });
