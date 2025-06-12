@@ -45,7 +45,11 @@
                             <p class="text-xs text-slate-500 border-b border-slate-100 py-2.5">{{ log.log_time.strftime('%H:%M') }}</p>
                             <p class="text-xs font-medium text-slate-600 border-b border-slate-100 py-2.5">{{ log.log_type }}</p>
                             <p class="font-semibold text-slate-800 text-right border-b border-slate-100 py-2.5">{{ log.calories if log.calories is not none else '—' }}</p>
-                            <p class="font-medium text-purple-700 truncate border-b border-slate-100 py-2.5">{{ log.description }}</p>
+                            <div class="border-b border-slate-100 py-2.5 truncate">
+                                <a href="{{ url_for('edit_food_log', log_id=log.id) }}" class="font-medium text-purple-700 truncate">
+                                    {{ log.description }}
+                                </a>
+                            </div>
                         {% endfor %}
                     </div>
                 </div>
@@ -60,6 +64,7 @@
                         <th scope="col" class="px-6 py-3">Type</th>
                         <th scope="col" class="px-6 py-3">Description</th>
                         <th scope="col" class="px-6 py-3">Calories</th>
+                        <th scope="col" class="px-6 py-3"><span class="sr-only">Actions</span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -69,6 +74,9 @@
                         <td class="px-6 py-2">{{ log.log_type }}</td>
                         <td class="px-6 py-2">{{ log.description }}</td>
                         <td class="px-6 py-2">{{ log.calories if log.calories is not none else 'N/A' }}</td>
+                        <td class="px-6 py-2 text-right">
+                            <a href="{{ url_for('edit_food_log', log_id=log.id) }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">Edit</a>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

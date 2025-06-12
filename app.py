@@ -794,6 +794,99 @@ def view_food_log():
         flash("Error fetching food log history.", "error")
         return redirect(url_for('food_log_page'))
     
+@app.route('/food_log/edit/<int:log_id>', methods=['GET', 'POST'])
+@login_required
+def edit_food_log(log_id):
+    conn = get_db()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT * FROM food_log WHERE id = %s AND user_id = 1", (log_id,))
+            log_entry = cur.fetchone()
+
+        if not log_entry:
+            flash('Food log entry not found.', 'error')
+            return redirect(url_for('view_food_log'))
+
+        if request.method == 'POST':
+            log_type = request.form.get('log_type')
+            description = request.form.get('description', '').strip()
+            calories_str = request.form.get('calories')
+            log_time_str = request.form.get('log_time')
+
+            errors = []
+            if not log_type:
+                errors.append("Please select a log type.")
+            if not description:
+                errors.append("Description cannot be empty.")
+            if not log_time_str:
+                errors.append("Please provide a date and time.")
+
+            calories = int(calories_str) if calories_str and calories_str.isdigit() else None
+
+            try:
+                log_time_dt = datetime.fromisoformat(log_time_str)
+            except (ValueError, TypeError):
+                errors.append("Invalid date and time format.")
+                log_time_dt = None
+
+            if errors:
+                for error in errors:
+                    flash(error, 'error')
+                # Re-render the page with the submitted (but invalid) data
+                log_entry['log_type'] = log_type
+                log_entry['description'] = description
+                log_entry['calories'] = calories
+                log_entry['log_time'] = log_time_str # Keep the string for the input field
+                return render_template('edit_food_log.html', log=log_entry)
+            else:
+                with conn.cursor() as cur:
+                    sql = """
+                        UPDATE food_log 
+                        SET log_type = %s, description = %s, calories = %s, log_time = %s
+                        WHERE id = %s AND user_id = 1
+                    """
+                    cur.execute(sql, (log_type, description, calories, log_time_dt, log_id))
+                conn.commit()
+                flash('Food log updated successfully!', 'success')
+                log_activity('food_log_updated', details={'log_id': log_id, 'description': description})
+                return redirect(url_for('view_food_log'))
+
+        # GET request
+        # Format the datetime object to the string required by the datetime-local input
+        if isinstance(log_entry['log_time'], datetime):
+             log_entry['log_time'] = log_entry['log_time'].strftime('%Y-%m-%dT%H:%M')
+        
+        return render_template('edit_food_log.html', log=log_entry)
+
+    except Exception as e:
+        conn.rollback()
+        log_activity('error', details={"function": "edit_food_log", "log_id": log_id, "error": str(e)})
+        flash(f"An error occurred: {e}", "error")
+        return redirect(url_for('view_food_log'))
+
+@app.route('/food_log/delete/<int:log_id>', methods=['POST'])
+@login_required
+def delete_food_log(log_id):
+    conn = get_db()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Optional: Fetch description for logging before deleting
+            cur.execute("SELECT description FROM food_log WHERE id = %s AND user_id = 1", (log_id,))
+            log_entry = cur.fetchone()
+            if not log_entry:
+                flash("Log entry not found.", "error")
+                return redirect(url_for('view_food_log'))
+
+            cur.execute("DELETE FROM food_log WHERE id = %s AND user_id = 1", (log_id,))
+        conn.commit()
+        flash('Food log entry deleted.', 'success')
+        log_activity('food_log_deleted', details={'log_id': log_id, 'description': log_entry['description']})
+    except Exception as e:
+        conn.rollback()
+        log_activity('error', details={"function": "delete_food_log", "log_id": log_id, "error": str(e)})
+        flash(f"An error occurred: {e}", 'error')
+
+    return redirect(url_for('view_food_log'))
 
 # --- Collection Log Routes ---
 @app.route('/collection')
