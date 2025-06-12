@@ -349,6 +349,36 @@ def notes_page():
         traceback.print_exc()
         flash("Error loading notes page.", "error")
         return redirect(url_for('hello'))
+    
+@app.route('/note/<int:note_id>/move', methods=['POST'])
+@login_required
+def move_note(note_id):
+    folder_id_str = request.form.get('folder_id')
+    
+    # Allow moving to root by setting folder_id to NULL
+    folder_id = int(folder_id_str) if folder_id_str and folder_id_str.isdigit() else None
+    
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            # Check if the note exists
+            cur.execute("SELECT id FROM notes WHERE id = %s AND user_id = 1", (note_id,))
+            if not cur.fetchone():
+                flash('Note not found.', 'error')
+                return redirect(url_for('notes_page'))
+            
+            # Update the folder_id for the note
+            cur.execute("UPDATE notes SET folder_id = %s, updated_at = NOW() WHERE id = %s AND user_id = 1", (folder_id, note_id))
+        conn.commit()
+        flash('Note moved successfully.', 'success')
+        log_activity('note_moved', details={'note_id': note_id, 'target_folder_id': folder_id})
+    except Exception as e:
+        conn.rollback()
+        flash(f'Error moving note: {e}', 'error')
+        log_activity('note_move_error', details={'note_id': note_id, 'error': str(e)})
+
+    # Redirect back to the note that was just moved
+    return redirect(url_for('view_note', note_id=note_id))
 
 @app.route('/note/<int:note_id>', methods=['GET'])
 @login_required
@@ -359,6 +389,10 @@ def view_note(note_id):
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             # Get the full tree for the sidebar
             notes_tree, orphaned_notes = get_full_notes_hierarchy(cur)
+            
+            # NEW: Get a flat list of all folders for the "Move" dropdown
+            cur.execute("SELECT id, name FROM folders WHERE user_id = 1 ORDER BY name")
+            all_folders_for_move = cur.fetchall()
 
             # Get the specific note being viewed
             cur.execute("SELECT * FROM notes WHERE id = %s AND user_id = 1", (note_id,))
@@ -367,7 +401,7 @@ def view_note(note_id):
                 flash('Note not found.', 'error')
                 return redirect(url_for('notes_page'))
 
-            # Process content for editing. Rendering is no longer needed.
+            # Process content for editing
             content_for_editing = convert_db_content_to_raw_for_editing(cur, current_note['content'])
 
             # Get backlinks and outgoing links
@@ -376,13 +410,14 @@ def view_note(note_id):
             cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.target_note_id WHERE nr.source_note_id = %s ORDER BY n.title;", (note_id,))
             outgoing_links = cur.fetchall()
 
-        return render_template('notes.html',
+        return render_template('notes.html', 
                                notes_tree=notes_tree,
                                orphaned_notes=orphaned_notes,
                                current_note=current_note,
                                content_for_editing=content_for_editing,
                                backlinks=backlinks,
-                               outgoing_links=outgoing_links)
+                               outgoing_links=outgoing_links,
+                               all_folders_for_move=all_folders_for_move) # Pass the folder list to the template
     except Exception as e:
         traceback.print_exc()
         flash(f"Error viewing note: {e}", "error")
