@@ -1,39 +1,36 @@
 {% extends "index.html" %}
 
-{# REFINED: Recursive macro to render the folder and note tree with corrected styling and structure #}
+{# REFINED: Recursive macro with condensed layout #}
 {% macro render_tree(items, is_root, current_note_id) %}
-<ul class="space-y-1 {{ 'pl-4' if not is_root else '' }}">
+<ul class="space-y-0.5 {{ 'pl-4' if not is_root else '' }}">
     {% for item in items %}
         {% if 'children' in item %} {# It's a folder #}
             <li class="tree-item">
-                <details {{ 'open' if current_note_id and item.id == current_note.folder_id else '' }}>
-                    <summary class="group flex justify-between items-center p-1 rounded-md hover:bg-slate-100 cursor-pointer">
-                        <div class="flex items-center gap-2 flex-grow truncate">
-                            <svg class="w-4 h-4 text-amber-500 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M19.5 21a3 3 0 003-3v-9a3 3 0 00-3-3h-6.879a.75.75 0 01-.53-.22L11.53 5.22a.75.75 0 00-.53-.22H4.5a3 3 0 00-3 3v12a3 3 0 003 3h15z" /></svg>
+                <details {{ 'open' if current_note and current_note.folder_id and item.id == current_note.folder_id else '' }}>
+                    <summary class="group flex justify-between items-center px-1 py-0.5 rounded-md hover:bg-slate-200 cursor-pointer">
+                        <div class="flex items-center gap-1.5 flex-grow truncate">
+                            <svg class="w-4 h-4 text-amber-600 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M19.5 21a3 3 0 003-3v-9a3 3 0 00-3-3h-6.879a.75.75 0 01-.53-.22L11.53 5.22a.75.75 0 00-.53-.22H4.5a3 3 0 00-3 3v12a3 3 0 003 3h15z" /></svg>
                             <span class="text-sm font-medium text-slate-700 truncate">{{ item.name }}</span>
                         </div>
                         <form action="{{ url_for('delete_folder', folder_id=item.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this folder and all its contents?');" class="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button type="submit" class="text-slate-400 hover:text-red-600 p-1 rounded-full">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            <button type="submit" class="text-slate-400 hover:text-red-600 p-0.5 rounded-full">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
                             </button>
                         </form>
                     </summary>
-                    {# Nested items #}
                     {{ render_tree(item.children, false, current_note_id) }}
                     {{ render_tree(item.notes, false, current_note_id) }}
                 </details>
             </li>
         {% else %} {# It's a note #}
-            <li class="tree-item group flex justify-between items-center p-1 rounded-md {% if current_note_id and current_note_id == item.id %}active{% else %}hover:bg-slate-100{% endif %}">
-                <a href="{{ url_for('view_note', note_id=item.id) }}" class="flex items-center gap-2 flex-grow truncate pr-2">
-                     <svg class="w-4 h-4 text-slate-500 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M5.625 1.5c-1.036 0-1.875.84-1.875 1.875v17.25c0 1.035.84 1.875 1.875 1.875h12.75c1.035 0 1.875-.84 1.875-1.875V12.75A3.75 3.75 0 0016.5 9h-1.875a.375.375 0 01-.375-.375V6.75A3.75 3.75 0 0010.5 3h-4.875A1.875 1.875 0 005.625 1.5zM12.25 11.25a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-4.5zM12 15.75a.75.75 0 01.75-.75h4.5a.75.75 0 010 1.5h-4.5a.75.75 0 01-.75-.75z" clip-rule="evenodd" /></svg>
+            <li data-note-id="{{ item.id }}" class="tree-item group flex justify-between items-center px-1 py-0.5 rounded-md {% if current_note_id and current_note_id == item.id %}active{% else %}hover:bg-slate-200{% endif %}">
+                <a href="{{ url_for('view_note', note_id=item.id) }}" class="flex items-center gap-1.5 flex-grow truncate pr-2">
+                     <svg class="w-4 h-4 text-slate-500 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M5.625 1.5c-1.036 0-1.875.84-1.875 1.875v17.25c0 1.035.84 1.875 1.875 1.875h12.75c1.035 0 1.875-.84 1.875-1.875V12.75A3.75 3.75 0 0016.5 9h-1.875a.375.375 0 01-.375-.375V6.75A3.75 3.75 0 0010.5 3h-4.875A1.875 1.875 0 005.625 1.5z" clip-rule="evenodd" /></svg>
                     <span class="text-sm font-medium truncate">{{ item.title }}</span>
                 </a>
-                <form action="{{ url_for('delete_note', note_id=item.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this note?');" class="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button type="submit" class="text-slate-400 hover:text-red-600 p-1 rounded-full">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    </button>
-                </form>
+                <button type="button" data-note-id="{{ item.id }}" class="delete-note-btn shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-red-600 p-0.5 rounded-full">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
             </li>
         {% endif %}
     {% endfor %}
@@ -45,72 +42,29 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tributejs@5.1.3/dist/tribute.css">
 <style>
     .notes-container {
-        display: flex;
-        gap: 1.5rem; /* 24px */
-        height: calc(100vh - 120px);
+        display: flex; gap: 1.5rem; height: calc(100vh - 120px);
     }
     .notes-explorer {
-        flex: 0 0 24rem;
-        background-color: #f8fafc; /* Lighter grey for explorer */
-        border-radius: 0.75rem;
-        padding: 1rem;
-        overflow-y: auto;
-        border: 1px solid var(--byzantine-border);
+        flex: 0 0 24rem; background-color: #f8fafc; border-radius: 0.75rem;
+        padding: 1rem; overflow-y: auto; border: 1px solid var(--byzantine-border);
+        display: flex; flex-direction: column;
     }
+    .explorer-content { flex-grow: 1; }
     .notes-editor-pane {
-        flex: 1 1 auto;
-        display: flex;
-        flex-direction: column;
-        min-width: 0;
+        flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0;
     }
-    .editor-wrapper {
-        display: flex;
-        flex-direction: row;
-        gap: 1.5rem;
-        flex-grow: 1;
-        min-height: 0;
-    }
-    .editor-container, .preview-container {
-        display: flex; /* Use flex to control children */
-        flex-direction: column;
-        overflow: hidden; /* Prevent content from spilling */
-        border: 1px solid var(--byzantine-border);
-        border-radius: 0.75rem;
-        background-color: #ffffff;
-        box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05);
-        transition: width 0.3s ease-in-out;
-    }
-    .editor-container textarea {
-        flex-grow: 1; /* Allow textarea to fill space */
-    }
-    .preview-container #rendered_content {
-        flex-grow: 1;
-        overflow-y: auto;
-    }
-
     /* Tree view styles */
-    .tree-item a { color: var(--byzantine-slate); transition: all 0.2s ease-in-out; }
+    .tree-item a { color: var(--byzantine-slate); }
     .tree-item a:hover { color: var(--imperial-purple); }
-    .tree-item.active { background-color: #f4f2f7; }
+    .tree-item.active { background-color: #eef2ff; }
     .tree-item.active a { color: var(--imperial-purple); font-weight: 600; }
-
     details > summary { list-style: none; }
     details > summary::-webkit-details-marker { display: none; }
     details > summary::before {
-        content: '►'; font-size: 0.6em; margin-right: 0.5rem;
-        transition: transform 0.2s; display: inline-block;
+        content: '►'; font-size: 0.6em; margin-right: 0.25rem;
+        transition: transform 0.2s; display: inline-block; vertical-align: middle;
     }
     details[open] > summary::before { transform: rotate(90deg); }
-
-    /* SNQL and Note Rendering Styles */
-    .prose .snql-link {
-        color: var(--imperial-purple, #4B0082); background-color: #f4f2f7;
-        padding: 2px 5px; border-radius: 4px; font-weight: 500;
-        text-decoration: none; border-bottom: 1px solid var(--byzantine-gold, #C59B08);
-    }
-    .prose .snql-link:hover { background-color: #e9e4f0; }
-    .prose h1, .prose h2, .prose h3 { margin-top: 1.2em; margin-bottom: 0.5em; }
-
     /* Tribute.js Autocomplete Styles */
     .tribute-container { border: 1px solid var(--byzantine-border); border-radius: 0.5rem; background-color: #ffffff; }
     .tribute-container li { padding: 0.5rem 1rem; cursor: pointer; }
@@ -120,53 +74,67 @@
 <div class="notes-container">
 
     <div class="notes-explorer">
-        <h2 class="text-lg font-semibold text-slate-800 mb-4">Scribe's Desk</h2>
-        <div class="space-y-4">
+        <div class="explorer-content">
+            <h2 class="text-lg font-semibold text-slate-800 mb-2">Scribe's Desk</h2>
             {{ render_tree(notes_tree, true, current_note.id if current_note else None) }}
 
             {% if orphaned_notes %}
-            <div class="pt-4 mt-4 border-t border-slate-200">
-                <h3 class="text-xs font-semibold uppercase text-slate-500 mb-2">Orphaned Notes</h3>
+            <div class="pt-2 mt-2 border-t border-slate-200">
+                <h3 class="text-xs font-semibold uppercase text-slate-500 my-2">Orphaned Notes</h3>
                 {{ render_tree(orphaned_notes, true, current_note.id if current_note else None) }}
             </div>
             {% endif %}
         </div>
-        <div class="mt-6 pt-6 border-t border-slate-200">
-             <form method="POST" action="{{ url_for('add_note') }}" class="space-y-2">
-                <input type="text" name="note_title" placeholder="New Note Title..." required class="form-input w-full p-2 text-sm rounded-md">
-                <button type="submit" class="btn-primary text-sm w-full py-2 rounded-md">Create Note</button>
+        <div class="mt-4 pt-4 border-t border-slate-200 space-y-3">
+             <form method="POST" action="{{ url_for('add_folder') }}" class="flex gap-2">
+                <input type="hidden" name="parent_folder_id" value="">
+                <input type="text" name="folder_name" placeholder="New Root Folder..." required class="form-input flex-grow p-2 text-sm rounded-md">
+                <button type="submit" class="btn-primary text-sm px-3 py-2 rounded-md shrink-0">Add</button>
+            </form>
+             <form method="POST" action="{{ url_for('add_note') }}" class="flex gap-2">
+                <input type="text" name="note_title" placeholder="New Note Title..." required class="form-input flex-grow p-2 text-sm rounded-md">
+                <button type="submit" class="btn-primary text-sm px-3 py-2 rounded-md shrink-0">Create</button>
             </form>
         </div>
     </div>
 
     <div class="notes-editor-pane">
         {% if current_note %}
-            <form method="POST" action="{{ url_for('update_note', note_id=current_note.id) }}" class="flex flex-col h-full space-y-4">
-                <div class="flex items-center gap-4">
-                    <input type="text" name="note_title" value="{{ current_note.title }}" class="form-input text-xl font-bold flex-grow p-2 rounded-md">
-                    <div id="view-toggles" class="flex items-center p-1 bg-slate-100 rounded-lg text-xs font-semibold">
-                        <button type="button" data-view="split" class="px-3 py-1 rounded-md bg-white shadow">Split</button>
-                        <button type="button" data-view="edit" class="px-3 py-1 rounded-md">Edit</button>
-                        <button type="button" data-view="preview" class="px-3 py-1 rounded-md">Preview</button>
-                    </div>
+            <form method="POST" action="{{ url_for('update_note', note_id=current_note.id) }}" class="flex flex-col h-full bg-white rounded-lg border border-slate-200 shadow-sm">
+                <div class="flex items-center gap-4 p-3 border-b border-slate-200">
+                    <input type="text" name="note_title" value="{{ current_note.title }}" class="form-input text-xl font-bold flex-grow p-2 rounded-md border-transparent focus:border-slate-300 focus:ring-0">
                     <button type="submit" class="btn-primary font-semibold py-2 px-6 rounded-md shrink-0">Save</button>
-                     <button form="delete_form" type="submit" class="text-red-500 hover:text-red-700 text-sm font-semibold">Delete</button>
                 </div>
+                
+                <textarea id="note_content" name="note_content" class="w-full h-full p-4 text-base resize-none border-0 focus:ring-0" style="color: #334155; font-family: 'Fira Code', 'Consolas', monospace;">{{ content_for_editing if content_for_editing is not none else '' }}</textarea>
 
-                <div class="editor-wrapper">
-                    <div id="editor-container" class="editor-container w-1/2">
-                        <textarea id="note_content" name="note_content" class="w-full h-full p-4 form-input rounded-md text-sm resize-none border-0 focus:ring-0" style="font-family: 'Fira Code', 'Consolas', monospace;">{{ content_for_editing if content_for_editing is not none else '' }}</textarea>
+                <div class="p-4 border-t border-slate-200 bg-slate-50 grid grid-cols-1 sm:grid-cols-2 gap-6 rounded-b-lg">
+                    <div>
+                        <h4 class="font-semibold text-slate-700 mb-2 text-sm">Linked From (Backlinks)</h4>
+                        {% if backlinks %}
+                            <ul class="list-disc list-inside text-sm space-y-1">
+                                {% for link in backlinks %}
+                                    <li><a href="{{ url_for('view_note', note_id=link.id) }}" class="text-purple-600 hover:underline">{{ link.title }}</a></li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-sm text-slate-500 italic">No notes link here.</p>
+                        {% endif %}
                     </div>
-
-                    <div id="preview-container" class="preview-container w-1/2">
-                        <div id="rendered_content" class="prose prose-sm max-w-none p-4">
-                            {{ content_as_html | safe if content_as_html else '<p class="text-slate-400 italic">This note is empty.</p>'}}
-                        </div>
+                    <div>
+                        <h4 class="font-semibold text-slate-700 mb-2 text-sm">Links To (Outgoing)</h4>
+                            {% if outgoing_links %}
+                            <ul class="list-disc list-inside text-sm space-y-1">
+                                {% for link in outgoing_links %}
+                                    <li><a href="{{ url_for('view_note', note_id=link.id) }}" class="text-purple-600 hover:underline">{{ link.title }}</a></li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-sm text-slate-500 italic">No outgoing links.</p>
+                        {% endif %}
                     </div>
                 </div>
             </form>
-            <form id="delete_form" action="{{ url_for('delete_note', note_id=current_note.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this note permanently?');" class="hidden"></form>
-
         {% else %}
             <div class="flex items-center justify-center h-full text-center text-slate-500 bg-white rounded-lg border border-dashed">
                 <div>
@@ -184,18 +152,12 @@
 document.addEventListener('DOMContentLoaded', () => {
     const noteContentElement = document.getElementById('note_content');
     if (noteContentElement) {
-        const renderedContentElement = document.getElementById('rendered_content');
-        const editorContainer = document.getElementById('editor-container');
-        const previewContainer = document.getElementById('preview-container');
-        const viewToggles = document.getElementById('view-toggles');
-
         // --- Tribute.js for [[Note]] linking ---
         const tribute = new Tribute({
             trigger: '[[',
             values: (text, cb) => {
                 if (text.length > 0) {
-                    fetch(`/api/notes/search?q=${encodeURIComponent(text)}`)
-                        .then(res => res.json())
+                    fetch(`/api/notes/search?q=${encodeURIComponent(text)}`).then(res => res.json())
                         .then(data => cb(data.map(t => ({ key: t, value: t }))))
                         .catch(() => cb([]));
                 } else { cb([]); }
@@ -208,71 +170,36 @@ document.addEventListener('DOMContentLoaded', () => {
             endCharacter: ']]',
         });
         tribute.attach(noteContentElement);
+    }
 
-        // --- Live Preview & Slash Commands ---
-        let debounceTimer;
-        noteContentElement.addEventListener('input', () => {
-            const text = noteContentElement.value;
-            const cursorPos = noteContentElement.selectionStart;
-            const textBeforeCursor = text.substring(0, cursorPos);
-            
-            const match = textBeforeCursor.match(/\/h([1-6])\s$/);
-            if (match) {
-                const level = parseInt(match[1], 10);
-                const header = '#'.repeat(level) + ' ';
-                const newText = textBeforeCursor.replace(/\/h[1-6]\s$/, header) + text.substring(cursorPos);
-                
-                noteContentElement.value = newText;
-                noteContentElement.selectionStart = noteContentElement.selectionEnd = cursorPos - match[0].length + header.length;
-            }
-
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                fetch('/api/render_markdown', {
+    // --- AJAX Deletion ---
+    document.querySelectorAll('.delete-note-btn').forEach(button => {
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            const noteId = button.dataset.noteId;
+            if (confirm('Are you sure you want to delete this note?')) {
+                fetch(`/api/note/${noteId}/delete`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content: noteContentElement.value })
+                    headers: { 'Content-Type': 'application/json' }
                 })
-                .then(res => res.json())
+                .then(response => response.json())
                 .then(data => {
-                    if(data.html) {
-                        renderedContentElement.innerHTML = data.html;
+                    if (data.success) {
+                        const treeItem = document.querySelector(`li[data-note-id="${noteId}"]`);
+                        if (treeItem) {
+                            treeItem.remove();
+                        }
+                        // If the deleted note is the one being viewed, redirect to the main notes page.
+                        if (window.location.pathname.includes(`/note/${noteId}`)) {
+                            window.location.href = "{{ url_for('notes_page') }}";
+                        }
                     } else {
-                        renderedContentElement.innerHTML = '<p class="text-slate-400 italic">Start typing...</p>';
+                        alert('Error deleting note: ' + data.error);
                     }
                 });
-            }, 300);
-        });
-
-        // --- View Toggles (Split, Edit, Preview) ---
-        viewToggles.addEventListener('click', (e) => {
-            if (e.target.tagName === 'BUTTON') {
-                const view = e.target.dataset.view;
-
-                // Update button styles
-                viewToggles.querySelectorAll('button').forEach(btn => {
-                    btn.classList.remove('bg-white', 'shadow');
-                });
-                e.target.classList.add('bg-white', 'shadow');
-
-                // Update container visibility and width
-                if (view === 'split') {
-                    editorContainer.classList.remove('hidden', 'w-full');
-                    editorContainer.classList.add('w-1/2');
-                    previewContainer.classList.remove('hidden', 'w-full');
-                    previewContainer.classList.add('w-1/2');
-                } else if (view === 'edit') {
-                    editorContainer.classList.remove('hidden', 'w-1/2');
-                    editorContainer.classList.add('w-full');
-                    previewContainer.classList.add('hidden');
-                } else if (view === 'preview') {
-                    previewContainer.classList.remove('hidden', 'w-1/2');
-                    previewContainer.classList.add('w-full');
-                    editorContainer.classList.add('hidden');
-                }
             }
         });
-    }
+    });
 });
 </script>
 {% endblock %}

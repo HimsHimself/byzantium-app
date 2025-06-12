@@ -19,7 +19,6 @@ from google.cloud import storage
 from werkzeug.utils import secure_filename
 import io
 import base64
-from markdown_it import MarkdownIt # <-- New Markdown Library Import
 
 app = Flask(__name__)
 
@@ -41,9 +40,6 @@ if not ORACLE_API_ENDPOINT_URL:
     print("[WARNING] ORACLE_API_ENDPOINT_URL not set. Oracle Chat functionality will be significantly impaired or disabled.")
 if not GCS_BUCKET_NAME or not GOOGLE_CREDENTIALS_JSON:
     print("[WARNING] GCS environment variables not set. Image uploads for the collection will not work.")
-
-# --- Markdown Renderer ---
-md = MarkdownIt("commonmark", {"html": True})
 
 # --- In-memory store for background job status ---
 oracle_jobs = {}
@@ -158,36 +154,6 @@ def process_and_update_note_content(cursor, note_id, raw_content):
         cursor.executemany("INSERT INTO note_references (source_note_id, target_note_id) VALUES (%s, %s) ON CONFLICT DO NOTHING", args_list)
     conn.commit()
 
-
-def render_snql_to_html(cursor, db_content):
-    """
-    Renders content with SNQL links, converting it from DB format to HTML.
-    This now also handles markdown parsing.
-    """
-    if not db_content:
-        return ""
-    
-    guids_to_find = SNQL_REF_PATTERN.findall(db_content)
-    guid_to_note = {}
-    if guids_to_find:
-        cursor.execute("SELECT id, guid, title FROM notes WHERE guid = ANY(%s::uuid[])", (list(set(guids_to_find)),))
-        for row in cursor.fetchall():
-            guid_to_note[str(row['guid'])] = {'id': row['id'], 'title': row['title']}
-
-    def replace_guid_with_link(match):
-        guid = match.group(1)
-        note_info = guid_to_note.get(guid)
-        if note_info:
-            # The text inside the link is now just the title, not the full [[title]]
-            return f'<a href="{url_for("view_note", note_id=note_info["id"])}" class="snql-link">{note_info["title"]}</a>'
-        return '<span class="snql-broken-link">[[Unknown Note]]</span>'
-
-    # First, replace all GUIDs with their appropriate HTML links
-    content_with_links = SNQL_REF_PATTERN.sub(replace_guid_with_link, db_content)
-    
-    # Then, parse the entire result as Markdown
-    html_content = md.render(content_with_links)
-    return html_content
 
 # --- NEW: Helper for building the notes and folders tree ---
 def get_full_notes_hierarchy(cursor):
@@ -401,9 +367,8 @@ def view_note(note_id):
                 flash('Note not found.', 'error')
                 return redirect(url_for('notes_page'))
 
-            # Process content for editing and viewing
+            # Process content for editing. Rendering is no longer needed.
             content_for_editing = convert_db_content_to_raw_for_editing(cur, current_note['content'])
-            content_as_html = render_snql_to_html(cur, current_note['content'])
 
             # Get backlinks and outgoing links
             cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.source_note_id WHERE nr.target_note_id = %s ORDER BY n.title;", (note_id,))
@@ -411,12 +376,11 @@ def view_note(note_id):
             cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.target_note_id WHERE nr.source_note_id = %s ORDER BY n.title;", (note_id,))
             outgoing_links = cur.fetchall()
 
-        return render_template('notes.html', 
+        return render_template('notes.html',
                                notes_tree=notes_tree,
                                orphaned_notes=orphaned_notes,
                                current_note=current_note,
                                content_for_editing=content_for_editing,
-                               content_as_html=content_as_html,
                                backlinks=backlinks,
                                outgoing_links=outgoing_links)
     except Exception as e:
@@ -549,28 +513,26 @@ def update_note(note_id):
     return redirect(redirect_url)
 
 
-@app.route('/note/<int:note_id>/delete', methods=['POST'])
+@app.route('/api/note/<int:note_id>/delete', methods=['POST'])
 @login_required
-def delete_note(note_id):
+def api_delete_note(note_id):
+    """API endpoint to delete a note. Handles request via fetch."""
     conn = get_db()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("SELECT title FROM notes WHERE id = %s AND user_id = 1", (note_id,))
             note_data = cur.fetchone()
-            if not note_data: 
-                flash("Note not found.", "error")
-                return redirect(url_for('notes_page'))
-            
+            if not note_data:
+                return jsonify({"success": False, "error": "Note not found."}), 404
+
             cur.execute("DELETE FROM notes WHERE id = %s AND user_id = 1", (note_id,))
         conn.commit()
         log_activity('note_deleted', details={'note_id': note_id, 'note_title': note_data['title']})
-        flash(f"Note '{note_data['title']}' deleted.", 'success')
+        return jsonify({"success": True})
     except Exception as e:
         conn.rollback()
         log_activity('note_delete_error', details={'note_id': note_id, 'error': str(e)})
-        flash(f"Error: {e}", 'error')
-        
-    return redirect(url_for('notes_page'))
+        return jsonify({"success": False, "error": str(e)}), 500
 
 # --- API Routes ---
 @app.route('/api/notes/search')
@@ -586,31 +548,6 @@ def api_notes_search():
         results = cur.fetchall()
         
     return jsonify([row['title'] for row in results])
-
-@app.route('/api/render_markdown', methods=['POST'])
-@login_required
-def api_render_markdown():
-    """API endpoint to render markdown for the live preview."""
-    data = request.json
-    raw_content = data.get('content', '')
-
-    # We need a db cursor to resolve SNQL links
-    conn = get_db()
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        # First, we need to convert the user's [[Title]] syntax to the DB's snql-ref:GUID format
-        # This is a bit inefficient for a preview, but necessary to use the renderer
-        temp_processed_content = raw_content
-        referenced_titles = {s.strip() for s in REFERENCE_PATTERN.findall(raw_content) if s.strip()}
-        if referenced_titles:
-            cur.execute("SELECT guid, title FROM notes WHERE title = ANY(%s)", (list(referenced_titles),))
-            found_notes = {note['title']: str(note['guid']) for note in cur.fetchall()}
-            for title, guid in found_notes.items():
-                temp_processed_content = re.sub(r'\[\[' + re.escape(title) + r'\]\](?!\])', f"snql-ref:{guid}", temp_processed_content)
-
-        # Now render the processed content to HTML
-        html_output = render_snql_to_html(cur, temp_processed_content)
-
-    return jsonify({'html': html_output})
 
 # --- Food Log Routes ---
 @app.route('/food_log', methods=['GET', 'POST'])
