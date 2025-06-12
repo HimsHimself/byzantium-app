@@ -112,7 +112,8 @@ def convert_db_content_to_raw_for_editing(cursor, db_content):
     guids_to_find = SNQL_REF_PATTERN.findall(db_content)
     guid_to_title = {}
     if guids_to_find:
-        cursor.execute("SELECT guid, title FROM notes WHERE guid = ANY(%s)", (list(set(guids_to_find)),))
+        # FIX: Explicitly cast the list of strings to a UUID array for PostgreSQL
+        cursor.execute("SELECT guid, title FROM notes WHERE guid = ANY(%s::uuid[])", (list(set(guids_to_find)),))
         for row in cursor.fetchall():
             guid_to_title[str(row['guid'])] = row['title']
 
@@ -163,7 +164,8 @@ def render_snql_content_as_html(cursor, db_content):
     guids_to_find = SNQL_REF_PATTERN.findall(db_content)
     guid_to_note = {}
     if guids_to_find:
-        cursor.execute("SELECT id, guid, title FROM notes WHERE guid = ANY(%s)", (list(set(guids_to_find)),))
+        # FIX: Explicitly cast the list of strings to a UUID array for PostgreSQL
+        cursor.execute("SELECT id, guid, title FROM notes WHERE guid = ANY(%s::uuid[])", (list(set(guids_to_find)),))
         for row in cursor.fetchall():
             guid_to_note[str(row['guid'])] = {'id': row['id'], 'title': row['title']}
 
