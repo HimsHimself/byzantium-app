@@ -1,6 +1,29 @@
 {% extends "index.html" %}
 
 {% block content %}
+<style>
+    .snql-link {
+        color: var(--imperial-purple, #4B0082);
+        background-color: #f4f2f7;
+        padding: 1px 4px;
+        border-radius: 4px;
+        font-weight: 500;
+        text-decoration: none;
+        border-bottom: 1px solid var(--byzantine-gold, #C59B08);
+    }
+    .snql-link:hover {
+        background-color: #e9e4f0;
+    }
+    .snql-broken-link {
+        color: #992c2c;
+        background-color: #fee2e2;
+        padding: 1px 4px;
+        border-radius: 4px;
+        text-decoration: line-through;
+        cursor: not-allowed;
+    }
+</style>
+
 <div class="content-card p-6 md:p-8">
     <div class="flex justify-between items-center mb-2">
         <h2 class="text-2xl font-semibold text-slate-800">
@@ -145,7 +168,7 @@
             {% if current_note %}
             <div class="p-4 border border-slate-200 rounded-lg bg-white shadow-sm">
                 <form method="POST" action="{{ url_for('rename_note', note_id=current_note.id) }}" class="mb-4">
-                    <label for="new_note_title_{{current_note.id}}" class="text-xs text-slate-500 block mb-1">Rename Note</label>
+                    <label for="new_note_title_{{current_note.id}}" class="text-xs text-slate-500 block mb-1">Note Title (Must be unique)</label>
                     <div class="flex items-center">
                          <input type="text" id="new_note_title_{{current_note.id}}" name="new_note_title" value="{{ current_note.title }}" required
                                class="form-input flex-grow p-2 text-lg font-medium rounded-l-md text-slate-700">
@@ -155,17 +178,13 @@
                         </button>
                     </div>
                 </form>
-                 <form method="POST" action="{{ url_for('update_note', note_id=current_note.id) }}">
-                    <textarea name="note_content" rows="15"
+                <form method="POST" action="{{ url_for('update_note', note_id=current_note.id) }}">
+                    <label for="note_content" class="text-xs text-slate-500 block mb-1">Content (use [[Note Title]] to create links)</label>
+                    <textarea id="note_content" name="note_content" rows="15"
                               class="w-full p-3 form-input rounded-md text-sm"
-                              style="color: #334155;">{{ current_note.content if current_note.content is not none else '' }}</textarea>
-                    <div class="mt-4 flex justify-between items-center">
-                         <form method="POST" action="{{ url_for('delete_note', note_id=current_note.id) }}" class="inline">
-                             <button type="submit" onclick="return confirm('Are you sure you want to delete this note?');"
-                                     class="text-red-500 hover:text-red-700 text-xs font-medium px-3 py-1 rounded-md hover:bg-red-50">
-                                 Delete This Note
-                             </button>
-                         </form>
+                              style="color: #334155; font-family: monospace;">{{ content_for_editing if content_for_editing is not none else '' }}</textarea>
+                    
+                    <div class="mt-4 flex justify-end items-center">
                         <div>
                             <a href="{{ url_for('notes_page', folder_id=current_note.folder_id if current_note.folder_id else None) }}" class="text-slate-600 hover:text-slate-800 px-4 py-2 rounded-md text-sm">Cancel</a>
                             <button type="submit"
@@ -175,6 +194,51 @@
                         </div>
                     </div>
                 </form>
+
+                <hr class="my-6 border-slate-200">
+
+                <div>
+                    <h4 class="font-semibold text-slate-700 mb-2">Rendered Note</h4>
+                    <div class="prose prose-sm max-w-none p-4 bg-slate-50 rounded-md border border-slate-200 min-h-[50px]">
+                        {{ content_as_html | safe }}
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
+                        <div>
+                            <h4 class="font-semibold text-slate-700 mb-2">Linked From (Backlinks)</h4>
+                            {% if backlinks %}
+                                <ul class="list-disc list-inside text-sm space-y-1">
+                                    {% for link in backlinks %}
+                                        <li><a href="{{ url_for('view_note', note_id=link.id) }}" class="text-purple-600 hover:underline">{{ link.title }}</a></li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                <p class="text-sm text-slate-500 italic">No notes link to this one.</p>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-slate-700 mb-2">Links To (Outgoing)</h4>
+                             {% if outgoing_links %}
+                                <ul class="list-disc list-inside text-sm space-y-1">
+                                    {% for link in outgoing_links %}
+                                        <li><a href="{{ url_for('view_note', note_id=link.id) }}" class="text-purple-600 hover:underline">{{ link.title }}</a></li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                <p class="text-sm text-slate-500 italic">This note doesn't link to any others.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 border-t pt-4">
+                     <form method="POST" action="{{ url_for('delete_note', note_id=current_note.id) }}" class="inline">
+                         <button type="submit" onclick="return confirm('Are you sure you want to delete this note?');"
+                                 class="text-red-500 hover:text-red-700 text-xs font-medium px-3 py-1 rounded-md hover:bg-red-50">
+                             Delete This Note
+                         </button>
+                     </form>
+                </div>
             </div>
             {% elif not current_folder and not notes_in_folder and not current_note %}
              <div class="p-4 border border-dashed border-slate-300 rounded-md bg-slate-50/30 text-center">

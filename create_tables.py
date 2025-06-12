@@ -10,6 +10,10 @@ try:
     conn = psycopg2.connect(db_url)
     cur = conn.cursor()
 
+    # Enable pgcrypto extension for gen_random_uuid()
+    cur.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto;")
+    print("Ensured 'pgcrypto' extension exists.")
+
     create_activity_log_script = """
     CREATE TABLE IF NOT EXISTS activity_log (
         id SERIAL PRIMARY KEY,
@@ -42,6 +46,7 @@ try:
     create_notes_script = """
     CREATE TABLE IF NOT EXISTS notes (
         id SERIAL PRIMARY KEY,
+        guid UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
         title VARCHAR(255) NOT NULL,
         content TEXT,
         folder_id INTEGER,
@@ -53,6 +58,22 @@ try:
     """
     cur.execute(create_notes_script)
     print("Table 'notes' created successfully.")
+
+    # SNQL: Table to store the relationship between notes (backlinks)
+    create_note_references_script = """
+    CREATE TABLE IF NOT EXISTS note_references (
+        id SERIAL PRIMARY KEY,
+        source_note_id INTEGER NOT NULL,
+        target_note_id INTEGER NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        FOREIGN KEY (source_note_id) REFERENCES notes(id) ON DELETE CASCADE,
+        FOREIGN KEY (target_note_id) REFERENCES notes(id) ON DELETE CASCADE,
+        UNIQUE(source_note_id, target_note_id)
+    );
+    """
+    cur.execute(create_note_references_script)
+    print("Table 'note_references' for SNQL created successfully.")
+
 
     create_food_log_script = """
     CREATE TABLE IF NOT EXISTS food_log (
@@ -68,7 +89,7 @@ try:
     cur.execute(create_food_log_script)
     print("Table 'food_log' created successfully.")
 
-# New table for the antiques collection
+    # New table for the antiques collection
     create_antiques_script = """
     CREATE TABLE IF NOT EXISTS antiques (
         id SERIAL PRIMARY KEY,
