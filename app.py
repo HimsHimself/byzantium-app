@@ -19,6 +19,7 @@ from google.cloud import storage
 from werkzeug.utils import secure_filename
 import io
 import base64
+from markdown_it import MarkdownIt # <-- New Markdown Library Import
 
 app = Flask(__name__)
 
@@ -41,6 +42,8 @@ if not ORACLE_API_ENDPOINT_URL:
 if not GCS_BUCKET_NAME or not GOOGLE_CREDENTIALS_JSON:
     print("[WARNING] GCS environment variables not set. Image uploads for the collection will not work.")
 
+# --- Markdown Renderer ---
+md = MarkdownIt()
 
 # --- In-memory store for background job status ---
 oracle_jobs = {}
@@ -112,7 +115,6 @@ def convert_db_content_to_raw_for_editing(cursor, db_content):
     guids_to_find = SNQL_REF_PATTERN.findall(db_content)
     guid_to_title = {}
     if guids_to_find:
-        # FIX: Explicitly cast the list of strings to a UUID array for PostgreSQL
         cursor.execute("SELECT guid, title FROM notes WHERE guid = ANY(%s::uuid[])", (list(set(guids_to_find)),))
         for row in cursor.fetchall():
             guid_to_title[str(row['guid'])] = row['title']
@@ -137,16 +139,16 @@ def process_and_update_note_content(cursor, note_id, raw_content):
         found_notes = {note['title']: {'id': note['id'], 'guid': str(note['guid'])} for note in cursor.fetchall()}
 
         for title in referenced_titles:
-            if title in found_notes:
-                note_info = found_notes[title]
+            note_info = found_notes.get(title)
+            if note_info:
                 target_note_ids.add(note_info['id'])
-                processed_content = re.sub(r'\[\[' + re.escape(title) + r'\]\]', f"snql-ref:{note_info['guid']}", processed_content)
+                # Use a more specific regex to avoid replacing parts of already processed links
+                processed_content = re.sub(r'\[\[' + re.escape(title) + r'\]\](?!\])', f"snql-ref:{note_info['guid']}", processed_content)
             else:
-                # Create a new orphaned note
                 cursor.execute("INSERT INTO notes (title, content, folder_id, user_id, created_at, updated_at) VALUES (%s, %s, %s, 1, NOW(), NOW()) RETURNING id, guid", (title, '', None))
                 new_note_id, new_note_guid = cursor.fetchone()
                 target_note_ids.add(new_note_id)
-                processed_content = re.sub(r'\[\[' + re.escape(title) + r'\]\]', f"snql-ref:{new_note_guid}", processed_content)
+                processed_content = re.sub(r'\[\[' + re.escape(title) + r'\]\](?!\])', f"snql-ref:{new_note_guid}", processed_content)
                 log_activity('note_created_from_link', details={'note_title': title, 'new_note_id': new_note_id, 'source_note_id': note_id})
 
     cursor.execute("UPDATE notes SET content = %s, updated_at = NOW() WHERE id = %s", (processed_content, note_id))
@@ -157,14 +159,17 @@ def process_and_update_note_content(cursor, note_id, raw_content):
     conn.commit()
 
 
-def render_snql_content_as_html(cursor, db_content):
+def render_snql_to_html(cursor, db_content):
+    """
+    Renders content with SNQL links, converting it from DB format to HTML.
+    This now also handles markdown parsing.
+    """
     if not db_content:
         return ""
     
     guids_to_find = SNQL_REF_PATTERN.findall(db_content)
     guid_to_note = {}
     if guids_to_find:
-        # FIX: Explicitly cast the list of strings to a UUID array for PostgreSQL
         cursor.execute("SELECT id, guid, title FROM notes WHERE guid = ANY(%s::uuid[])", (list(set(guids_to_find)),))
         for row in cursor.fetchall():
             guid_to_note[str(row['guid'])] = {'id': row['id'], 'title': row['title']}
@@ -173,11 +178,55 @@ def render_snql_content_as_html(cursor, db_content):
         guid = match.group(1)
         note_info = guid_to_note.get(guid)
         if note_info:
-            return f'<a href="{url_for("view_note", note_id=note_info["id"])}" class="snql-link">[[{note_info["title"]}]]</a>'
+            # The text inside the link is now just the title, not the full [[title]]
+            return f'<a href="{url_for("view_note", note_id=note_info["id"])}" class="snql-link">{note_info["title"]}</a>'
         return '<span class="snql-broken-link">[[Unknown Note]]</span>'
 
-    html_content = SNQL_REF_PATTERN.sub(replace_guid_with_link, db_content)
-    return html_content.replace('\n', '<br>')
+    # First, replace all GUIDs with their appropriate HTML links
+    content_with_links = SNQL_REF_PATTERN.sub(replace_guid_with_link, db_content)
+    
+    # Then, parse the entire result as Markdown
+    html_content = md.render(content_with_links)
+    return html_content
+
+# --- NEW: Helper for building the notes and folders tree ---
+def get_full_notes_hierarchy(cursor):
+    """
+    Fetches all notes and folders and organizes them into a hierarchical
+    tree structure for the sidebar.
+    """
+    cursor.execute("SELECT id, name, parent_folder_id FROM folders WHERE user_id = 1 ORDER BY name")
+    all_folders = cursor.fetchall()
+    
+    cursor.execute("SELECT id, title, folder_id FROM notes WHERE user_id = 1 ORDER BY title")
+    all_notes = cursor.fetchall()
+
+    folder_map = {f['id']: f for f in all_folders}
+    
+    # Initialize children and notes lists for each folder
+    for folder_id in folder_map:
+        folder_map[folder_id]['children'] = []
+        folder_map[folder_id]['notes'] = []
+
+    # Slot notes into their respective folders
+    for note in all_notes:
+        folder_id = note['folder_id']
+        if folder_id in folder_map:
+            folder_map[folder_id]['notes'].append(note)
+
+    # Build the hierarchy
+    tree = []
+    for folder in all_folders:
+        parent_id = folder['parent_folder_id']
+        if parent_id in folder_map:
+            folder_map[parent_id]['children'].append(folder)
+        else: # Top-level folder
+            tree.append(folder)
+            
+    # Get notes that don't belong to any folder
+    orphaned_notes = [note for note in all_notes if not note['folder_id']]
+    
+    return tree, orphaned_notes
 
 # --- GCS Upload Helper (Render-compatible) ---
 def upload_to_gcs(file_to_upload, bucket_name):
@@ -271,7 +320,7 @@ def logout():
 def before_request_handler():
     if 'logged_in' in session and \
        request.endpoint and \
-       request.endpoint not in ['login', 'static', 'logout', 'api_oracle_chat_start', 'api_oracle_chat_status', 'api_notes_search']:
+       request.endpoint not in ['login', 'static', 'logout', 'api_oracle_chat_start', 'api_oracle_chat_status', 'api_notes_search', 'api_render_markdown']:
         log_activity('pageview')
 
 @app.route('/')
@@ -318,207 +367,53 @@ def hello():
 
 # --- Notes and Folders Routes ---
 @app.route('/notes/')
-@app.route('/notes/folder/<int:folder_id>')
 @login_required
-def notes_page(folder_id=None):
+def notes_page():
+    """Renders the main notes page without a specific note selected."""
     try:
         conn = get_db()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            current_folder = None
-            notes_in_current_folder = []
-            orphaned_notes = []
-            all_folders = []
+            notes_tree, orphaned_notes = get_full_notes_hierarchy(cur)
 
-            if folder_id:
-                cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
-                current_folder = cur.fetchone()
-                if not current_folder:
-                    flash('Folder not found.', 'error')
-                    return redirect(url_for('notes_page'))
-                cur.execute("SELECT * FROM folders WHERE parent_folder_id = %s AND user_id = 1 ORDER BY name", (folder_id,))
-                folders_to_display = cur.fetchall()
-                cur.execute("SELECT id, title, folder_id, updated_at FROM notes WHERE folder_id = %s AND user_id = 1 ORDER BY updated_at DESC", (folder_id,))
-                notes_in_current_folder = cur.fetchall()
-            else: # Root view
-                cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
-                folders_to_display = cur.fetchall()
-                # Get orphaned notes
-                cur.execute("SELECT id, title, updated_at FROM notes WHERE folder_id IS NULL AND user_id = 1 ORDER BY updated_at DESC")
-                orphaned_notes = cur.fetchall()
-                # Get all folders for the 'move' dropdown
-                cur.execute("SELECT id, name FROM folders WHERE user_id = 1 ORDER BY name")
-                all_folders = cur.fetchall()
-        
-            return render_template('notes.html', 
-                                   folders=folders_to_display, 
-                                   notes_in_folder=notes_in_current_folder, 
-                                   current_folder=current_folder, 
-                                   current_note=None,
-                                   orphaned_notes=orphaned_notes,
-                                   all_folders=all_folders)
+        return render_template('notes.html',
+                               notes_tree=notes_tree,
+                               orphaned_notes=orphaned_notes,
+                               current_note=None)
     except Exception as e:
         traceback.print_exc()
-        flash("Error loading notes.", "error")
+        flash("Error loading notes page.", "error")
         return redirect(url_for('hello'))
-
-@app.route('/add_folder', methods=['POST'])
-@login_required
-def add_folder():
-    folder_name = request.form.get('folder_name','').strip()
-    parent_folder_id_str = request.form.get('parent_folder_id')
-    parent_folder_id = int(parent_folder_id_str) if parent_folder_id_str and parent_folder_id_str.isdigit() else None
-    redirect_url = url_for('notes_page', folder_id=parent_folder_id) if parent_folder_id else url_for('notes_page')
-    
-    if not folder_name:
-        flash('Folder name cannot be empty.', 'error')
-    else:
-        conn = get_db()
-        try:
-            with conn.cursor() as cur:
-                cur.execute("INSERT INTO folders (name, parent_folder_id, user_id, created_at, updated_at) VALUES (%s, %s, 1, NOW(), NOW()) RETURNING id", (folder_name, parent_folder_id))
-                new_folder_id = cur.fetchone()[0]
-            conn.commit()
-            log_activity('folder_created', details={'folder_name': folder_name, 'parent_id': parent_folder_id, 'new_folder_id': new_folder_id})
-            flash(f"Folder '{folder_name}' created.", 'success')
-            redirect_url = url_for('notes_page', folder_id=new_folder_id)
-        except Exception as e:
-            conn.rollback()
-            log_activity('folder_create_error', details={'folder_name': folder_name, 'error': str(e)})
-            flash(f"Error: {e}", 'error')
-    return redirect(redirect_url)
-
-@app.route('/folder/<int:folder_id>/rename', methods=['POST'])
-@login_required
-def rename_folder(folder_id):
-    new_folder_name = request.form.get('new_folder_name','').strip()
-    conn = get_db()
-    try:
-        if not new_folder_name: 
-            flash('Folder name cannot be empty.', 'error')
-            return redirect(url_for('notes_page', folder_id=folder_id))
-        
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT parent_folder_id FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
-            folder_data = cur.fetchone()
-            if not folder_data:
-                flash("Folder not found.", "error")
-                return redirect(url_for('notes_page'))
-            
-            cur.execute("UPDATE folders SET name = %s, updated_at = NOW() WHERE id = %s AND user_id = 1", (new_folder_name, folder_id))
-        conn.commit()
-        
-        log_activity('folder_renamed', details={'folder_id': folder_id, 'new_name': new_folder_name})
-        flash(f"Folder renamed to '{new_folder_name}'.", 'success')
-        parent_id = folder_data['parent_folder_id']
-        redirect_url = url_for('notes_page', folder_id=parent_id) if parent_id else url_for('notes_page')
-        return redirect(redirect_url)
-
-    except Exception as e:
-        conn.rollback()
-        log_activity('folder_rename_error', details={'folder_id': folder_id, 'error': str(e)})
-        flash(f"Error: {e}", 'error')
-        return redirect(url_for('notes_page', folder_id=folder_id))
-
-@app.route('/folder/<int:folder_id>/delete', methods=['POST'])
-@login_required
-def delete_folder(folder_id):
-    conn = get_db()
-    parent_id_of_deleted_folder = None
-    try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT name, parent_folder_id FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
-            folder_data = cur.fetchone()
-            if not folder_data: 
-                flash("Folder not found.", "error")
-                return redirect(url_for('notes_page'))
-            folder_name_for_log = folder_data['name']
-            parent_id_of_deleted_folder = folder_data['parent_folder_id']
-            cur.execute("DELETE FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
-        conn.commit()
-        log_activity('folder_deleted', details={'folder_id': folder_id, 'folder_name': folder_name_for_log})
-        flash(f"Folder '{folder_name_for_log}' deleted.", 'success')
-    except Exception as e:
-        conn.rollback()
-        log_activity('folder_delete_error', details={'folder_id': folder_id, 'error': str(e)})
-        flash(f"Error: {e}", 'error')
-        
-    if parent_id_of_deleted_folder: 
-        return redirect(url_for('notes_page', folder_id=parent_id_of_deleted_folder))
-    return redirect(url_for('notes_page'))
-
-@app.route('/notes/folder/<int:folder_id>/add_note', methods=['POST'])
-@login_required
-def add_note(folder_id):
-    note_title = request.form.get('note_title','').strip()
-    redirect_url = url_for('notes_page', folder_id=folder_id)
-    if not note_title: 
-        flash('Note title cannot be empty.', 'error')
-    else:
-        conn = get_db()
-        try:
-            with conn.cursor() as cur:
-                # SNQL: Check for duplicate title
-                cur.execute("SELECT id FROM notes WHERE title = %s AND user_id = 1", (note_title,))
-                if cur.fetchone():
-                    flash(f"A note with the title '{note_title}' already exists.", 'error')
-                    return redirect(redirect_url)
-                
-                cur.execute("INSERT INTO notes (title, content, folder_id, user_id, created_at, updated_at) VALUES (%s, %s, %s, 1, NOW(), NOW()) RETURNING id",(note_title, '', folder_id))
-                new_note_id = cur.fetchone()[0]
-            conn.commit()
-            log_activity('note_created', details={'note_title': note_title, 'folder_id': folder_id, 'note_id': new_note_id})
-            flash(f"Note '{note_title}' created.", 'success')
-            redirect_url = url_for('view_note', note_id=new_note_id)
-        except Exception as e:
-            conn.rollback()
-            log_activity('note_create_error', details={'note_title': note_title, 'folder_id': folder_id, 'error': str(e)})
-            flash(f"Error: {e}", 'error')
-    return redirect(redirect_url)
 
 @app.route('/note/<int:note_id>', methods=['GET'])
 @login_required
 def view_note(note_id):
+    """Renders the notes page with a specific note selected for viewing/editing."""
     try:
         conn = get_db()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Get the full tree for the sidebar
+            notes_tree, orphaned_notes = get_full_notes_hierarchy(cur)
+
+            # Get the specific note being viewed
             cur.execute("SELECT * FROM notes WHERE id = %s AND user_id = 1", (note_id,))
             current_note = cur.fetchone()
             if not current_note:
                 flash('Note not found.', 'error')
                 return redirect(url_for('notes_page'))
 
-            # BUG FIX: Pass the cursor to the helper functions
+            # Process content for editing and viewing
             content_for_editing = convert_db_content_to_raw_for_editing(cur, current_note['content'])
-            content_as_html = render_snql_content_as_html(cur, current_note['content'])
-            
+            content_as_html = render_snql_to_html(cur, current_note['content'])
+
+            # Get backlinks and outgoing links
             cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.source_note_id WHERE nr.target_note_id = %s ORDER BY n.title;", (note_id,))
             backlinks = cur.fetchall()
-
             cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.target_note_id WHERE nr.source_note_id = %s ORDER BY n.title;", (note_id,))
             outgoing_links = cur.fetchall()
-            
-            folder_id = current_note['folder_id']
-            current_folder = None
-            if folder_id:
-                cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
-                current_folder = cur.fetchone()
-            
-            parent_id_for_folder_list = current_folder['parent_folder_id'] if current_folder else None
-            if parent_id_for_folder_list:
-                cur.execute("SELECT * FROM folders WHERE parent_folder_id = %s AND user_id = 1 ORDER BY name", (parent_id_for_folder_list,))
-            else:
-                cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
-            folders_to_display = cur.fetchall()
-            
-            notes_in_same_folder = []
-            if folder_id:
-                cur.execute("SELECT id, title, updated_at FROM notes WHERE folder_id = %s AND user_id = 1 ORDER BY updated_at DESC", (folder_id,))
-                notes_in_same_folder = cur.fetchall()
 
         return render_template('notes.html', 
-                               folders=folders_to_display, 
-                               current_folder=current_folder, 
-                               notes_in_folder=notes_in_same_folder, 
+                               notes_tree=notes_tree,
+                               orphaned_notes=orphaned_notes,
                                current_note=current_note,
                                content_for_editing=content_for_editing,
                                content_as_html=content_as_html,
@@ -530,64 +425,127 @@ def view_note(note_id):
         log_activity('view_note_error', details={'note_id': note_id, 'error': str(e)})
         return redirect(url_for('notes_page'))
 
-
-@app.route('/note/<int:note_id>/rename', methods=['POST'])
+@app.route('/add_folder', methods=['POST'])
 @login_required
-def rename_note(note_id):
-    new_note_title = request.form.get('new_note_title','').strip()
-    redirect_url = url_for('view_note', note_id=note_id)
-    if not new_note_title: 
-        flash("Note title cannot be empty.", "error")
+def add_folder():
+    folder_name = request.form.get('folder_name','').strip()
+    # The new UI will always have the parent folder ID in the form
+    parent_folder_id_str = request.form.get('parent_folder_id')
+    parent_folder_id = int(parent_folder_id_str) if parent_folder_id_str and parent_folder_id_str.isdigit() else None
+    
+    if not folder_name:
+        flash('Folder name cannot be empty.', 'error')
     else:
         conn = get_db()
         try:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # SNQL: Check for duplicate title
-                cur.execute("SELECT id FROM notes WHERE title = %s AND user_id = 1 AND id != %s", (new_note_title, note_id))
-                if cur.fetchone():
-                    flash(f"A note with the title '{new_note_title}' already exists.", 'error')
-                    return redirect(redirect_url)
-
-                cur.execute("SELECT id FROM notes WHERE id = %s AND user_id = 1", (note_id,))
-                if not cur.fetchone(): 
-                    flash("Note not found.", "error")
-                    return redirect(url_for('notes_page'))
-
-                cur.execute("UPDATE notes SET title = %s, updated_at = NOW() WHERE id = %s AND user_id = 1",(new_note_title, note_id))
+            with conn.cursor() as cur:
+                cur.execute("INSERT INTO folders (name, parent_folder_id, user_id, created_at, updated_at) VALUES (%s, %s, 1, NOW(), NOW())", (folder_name, parent_folder_id))
             conn.commit()
-            log_activity('note_renamed', details={'note_id': note_id, 'new_title': new_note_title})
-            flash('Note renamed.', 'success')
+            log_activity('folder_created', details={'folder_name': folder_name, 'parent_id': parent_folder_id})
+            flash(f"Folder '{folder_name}' created.", 'success')
         except Exception as e:
             conn.rollback()
-            log_activity('note_rename_error', details={'note_id': note_id, 'error': str(e)})
-            flash(f"Error: {e}", 'error')
-    return redirect(redirect_url)
+            log_activity('folder_create_error', details={'folder_name': folder_name, 'error': str(e)})
+            flash(f"Error creating folder: {e}", 'error')
+    
+    # Redirect back to the main notes page; the tree will be updated
+    return redirect(url_for('notes_page'))
+
+@app.route('/folder/<int:folder_id>/delete', methods=['POST'])
+@login_required
+def delete_folder(folder_id):
+    conn = get_db()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT name FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
+            folder = cur.fetchone()
+            if not folder: 
+                flash("Folder not found.", "error")
+            else:
+                cur.execute("DELETE FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
+                conn.commit()
+                log_activity('folder_deleted', details={'folder_id': folder_id, 'folder_name': folder['name']})
+                flash(f"Folder '{folder['name']}' and all its contents have been deleted.", 'success')
+    except Exception as e:
+        conn.rollback()
+        log_activity('folder_delete_error', details={'folder_id': folder_id, 'error': str(e)})
+        flash(f"Error deleting folder: {e}", 'error')
+        
+    return redirect(url_for('notes_page'))
+
+@app.route('/add_note', methods=['POST'])
+@login_required
+def add_note():
+    note_title = request.form.get('note_title','').strip()
+    folder_id_str = request.form.get('folder_id')
+    folder_id = int(folder_id_str) if folder_id_str and folder_id_str.isdigit() else None
+
+    if not note_title:
+        flash('Note title cannot be empty.', 'error')
+        return redirect(url_for('notes_page'))
+        
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM notes WHERE title = %s AND user_id = 1", (note_title,))
+            if cur.fetchone():
+                flash(f"A note with the title '{note_title}' already exists.", 'error')
+                return redirect(url_for('notes_page'))
+            
+            cur.execute("INSERT INTO notes (title, content, folder_id, user_id, created_at, updated_at) VALUES (%s, %s, %s, 1, NOW(), NOW()) RETURNING id", (note_title, f'# {note_title}\n\n', folder_id))
+            new_note_id = cur.fetchone()[0]
+        conn.commit()
+        log_activity('note_created', details={'note_title': note_title, 'folder_id': folder_id, 'note_id': new_note_id})
+        flash(f"Note '{note_title}' created.", 'success')
+        # Redirect to the new note's page
+        return redirect(url_for('view_note', note_id=new_note_id))
+    except Exception as e:
+        conn.rollback()
+        log_activity('note_create_error', details={'note_title': note_title, 'folder_id': folder_id, 'error': str(e)})
+        flash(f"Error creating note: {e}", 'error')
+        return redirect(url_for('notes_page'))
+
 
 @app.route('/note/<int:note_id>/update', methods=['POST'])
 @login_required
 def update_note(note_id):
     raw_content = request.form.get('note_content', '')
+    note_title = request.form.get('note_title', '').strip()
     redirect_url = url_for('view_note', note_id=note_id)
+    
+    if not note_title:
+        flash("Note title cannot be empty.", "error")
+        return redirect(redirect_url)
+
     conn = get_db()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT title FROM notes WHERE id = %s AND user_id = 1", (note_id,))
-            note_data = cur.fetchone()
-            if not note_data:
+            cur.execute("SELECT id FROM notes WHERE id = %s AND user_id = 1", (note_id,))
+            if not cur.fetchone():
                 flash("Note not found.", "error")
                 return redirect(url_for('notes_page'))
             
-            # Use the helper, passing the cursor
+            # Check for title duplication
+            cur.execute("SELECT id FROM notes WHERE title = %s AND user_id = 1 AND id != %s", (note_title, note_id))
+            if cur.fetchone():
+                flash(f"Another note with the title '{note_title}' already exists.", 'error')
+                return redirect(redirect_url)
+
+            # Update title
+            cur.execute("UPDATE notes SET title = %s, updated_at = NOW() WHERE id = %s", (note_title, note_id))
+            
+            # Process content for SNQL links and update
             process_and_update_note_content(cur, note_id, raw_content)
         
-        # The helper now handles commit
-        log_activity('note_updated', details={'note_id': note_id, 'note_title': note_data['title']})
-        flash('Note updated with SNQL references.', 'success')
+        # The helper function handles its own commit
+        log_activity('note_updated', details={'note_id': note_id, 'note_title': note_title})
+        flash('Note updated.', 'success')
     except Exception as e:
         conn.rollback()
         log_activity('note_update_error', details={'note_id': note_id, 'error': str(e)})
         flash(f"Error updating note: {e}", 'error')
         traceback.print_exc()
+        
     return redirect(redirect_url)
 
 
@@ -595,16 +553,14 @@ def update_note(note_id):
 @login_required
 def delete_note(note_id):
     conn = get_db()
-    folder_note_was_in = None
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT title, folder_id FROM notes WHERE id = %s AND user_id = 1", (note_id,))
+            cur.execute("SELECT title FROM notes WHERE id = %s AND user_id = 1", (note_id,))
             note_data = cur.fetchone()
             if not note_data: 
                 flash("Note not found.", "error")
                 return redirect(url_for('notes_page'))
-            folder_note_was_in = note_data['folder_id']
-            # SNQL: The ON DELETE CASCADE on the note_references table handles cleanup automatically
+            
             cur.execute("DELETE FROM notes WHERE id = %s AND user_id = 1", (note_id,))
         conn.commit()
         log_activity('note_deleted', details={'note_id': note_id, 'note_title': note_data['title']})
@@ -614,33 +570,7 @@ def delete_note(note_id):
         log_activity('note_delete_error', details={'note_id': note_id, 'error': str(e)})
         flash(f"Error: {e}", 'error')
         
-    if folder_note_was_in: 
-        return redirect(url_for('notes_page', folder_id=folder_note_was_in))
     return redirect(url_for('notes_page'))
-
-@app.route('/note/<int:note_id>/move', methods=['POST'])
-@login_required
-def move_note(note_id):
-    folder_id_str = request.form.get('folder_id')
-    if not folder_id_str or not folder_id_str.isdigit():
-        flash('Invalid folder selected.', 'error')
-        return redirect(url_for('notes_page'))
-    
-    folder_id = int(folder_id_str)
-    conn = get_db()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("UPDATE notes SET folder_id = %s WHERE id = %s AND user_id = 1", (folder_id, note_id))
-        conn.commit()
-        flash('Note successfully moved to folder.', 'success')
-        log_activity('note_moved', details={'note_id': note_id, 'target_folder_id': folder_id})
-    except Exception as e:
-        conn.rollback()
-        flash(f'Error moving note: {e}', 'error')
-        log_activity('note_move_error', details={'note_id': note_id, 'error': str(e)})
-
-    return redirect(url_for('notes_page'))
-
 
 # --- API Routes ---
 @app.route('/api/notes/search')
@@ -652,11 +582,36 @@ def api_notes_search():
     
     conn = get_db()
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        # Search for titles that start with the query for better performance and relevance
-        cur.execute("SELECT title FROM notes WHERE title ILIKE %s AND user_id = 1 LIMIT 10", (f"{query}%",))
+        cur.execute("SELECT title FROM notes WHERE title ILIKE %s AND user_id = 1 LIMIT 10", (f"%{query}%",))
         results = cur.fetchall()
         
     return jsonify([row['title'] for row in results])
+
+@app.route('/api/render_markdown', methods=['POST'])
+@login_required
+def api_render_markdown():
+    """API endpoint to render markdown for the live preview."""
+    data = request.json
+    raw_content = data.get('content', '')
+    
+    # We need a db cursor to resolve SNQL links
+    conn = get_db()
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # First, we need to convert the user's [[Title]] syntax to the DB's snql-ref:GUID format
+        # This is a bit inefficient for a preview, but necessary to use the renderer
+        temp_processed_content = raw_content
+        referenced_titles = {s.strip() for s in REFERENCE_PATTERN.findall(raw_content) if s.strip()}
+        if referenced_titles:
+            cur.execute("SELECT guid, title FROM notes WHERE title = ANY(%s)", (list(referenced_titles),))
+            # FIX: The variable is `cur`, not `cursor`.
+            found_notes = {note['title']: str(note['guid']) for note in cur.fetchall()}
+            for title, guid in found_notes.items():
+                temp_processed_content = re.sub(r'\[\[' + re.escape(title) + r'\]\](?!\])', f"snql-ref:{guid}", temp_processed_content)
+        
+        # Now render the processed content to HTML
+        html_output = render_snql_to_html(cur, temp_processed_content)
+        
+    return jsonify({'html': html_output})
 
 # --- Food Log Routes ---
 @app.route('/food_log', methods=['GET', 'POST'])
