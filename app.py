@@ -179,6 +179,46 @@ def render_snql_content_as_html(cursor, db_content):
     html_content = SNQL_REF_PATTERN.sub(replace_guid_with_link, db_content)
     return html_content.replace('\n', '<br>')
 
+# --- NEW: Helper function to build folder tree ---
+def get_folder_tree(cursor):
+    """
+    Fetches all folders and organizes them into a nested tree structure.
+    """
+    cursor.execute("SELECT id, name, parent_folder_id FROM folders WHERE user_id = 1 ORDER BY name")
+    all_folders = cursor.fetchall()
+    
+    folder_map = {f['id']: {**f, 'children': []} for f in all_folders}
+    tree = []
+    
+    for folder_id, folder_data in folder_map.items():
+        parent_id = folder_data['parent_folder_id']
+        if parent_id and parent_id in folder_map:
+            folder_map[parent_id]['children'].append(folder_data)
+        elif not parent_id:
+            tree.append(folder_data)
+            
+    return tree
+
+# --- NEW: Helper function to get breadcrumbs ---
+def get_breadcrumbs(cursor, folder_id):
+    """
+    Generates a breadcrumb trail for a given folder ID.
+    """
+    if not folder_id:
+        return []
+    
+    breadcrumbs = []
+    current_id = folder_id
+    while current_id:
+        cursor.execute("SELECT id, name, parent_folder_id FROM folders WHERE id = %s", (current_id,))
+        folder = cursor.fetchone()
+        if folder:
+            breadcrumbs.append({'id': folder['id'], 'name': folder['name']})
+            current_id = folder['parent_folder_id']
+        else:
+            current_id = None
+    return list(reversed(breadcrumbs))
+
 # --- GCS Upload Helper (Render-compatible) ---
 def upload_to_gcs(file_to_upload, bucket_name):
     """Uploads a file to a given GCS bucket and returns its filename.""" # <-- Docstring updated
@@ -326,8 +366,10 @@ def notes_page(folder_id=None):
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             current_folder = None
             notes_in_current_folder = []
-            orphaned_notes = []
-            all_folders = []
+            
+            # UPDATED: Use new helper functions
+            folder_tree = get_folder_tree(cur)
+            breadcrumbs = get_breadcrumbs(cur, folder_id)
 
             if folder_id:
                 cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
@@ -335,27 +377,20 @@ def notes_page(folder_id=None):
                 if not current_folder:
                     flash('Folder not found.', 'error')
                     return redirect(url_for('notes_page'))
-                cur.execute("SELECT * FROM folders WHERE parent_folder_id = %s AND user_id = 1 ORDER BY name", (folder_id,))
-                folders_to_display = cur.fetchall()
                 cur.execute("SELECT id, title, folder_id, updated_at FROM notes WHERE folder_id = %s AND user_id = 1 ORDER BY updated_at DESC", (folder_id,))
                 notes_in_current_folder = cur.fetchall()
-            else: # Root view
-                cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
-                folders_to_display = cur.fetchall()
-                # Get orphaned notes
-                cur.execute("SELECT id, title, updated_at FROM notes WHERE folder_id IS NULL AND user_id = 1 ORDER BY updated_at DESC")
-                orphaned_notes = cur.fetchall()
-                # Get all folders for the 'move' dropdown
-                cur.execute("SELECT id, name FROM folders WHERE user_id = 1 ORDER BY name")
-                all_folders = cur.fetchall()
+
+            # Get orphaned notes (always needed for the nav pane)
+            cur.execute("SELECT id, title, updated_at FROM notes WHERE folder_id IS NULL AND user_id = 1 ORDER BY updated_at DESC")
+            orphaned_notes = cur.fetchall()
         
             return render_template('notes.html', 
-                                   folders=folders_to_display, 
+                                   folder_tree=folder_tree,
+                                   breadcrumbs=breadcrumbs,
                                    notes_in_folder=notes_in_current_folder, 
                                    current_folder=current_folder, 
                                    current_note=None,
-                                   orphaned_notes=orphaned_notes,
-                                   all_folders=all_folders)
+                                   orphaned_notes=orphaned_notes)
     except Exception as e:
         traceback.print_exc()
         flash("Error loading notes.", "error")
@@ -367,6 +402,8 @@ def add_folder():
     folder_name = request.form.get('folder_name','').strip()
     parent_folder_id_str = request.form.get('parent_folder_id')
     parent_folder_id = int(parent_folder_id_str) if parent_folder_id_str and parent_folder_id_str.isdigit() else None
+    
+    # UPDATED: This is the URL we will return to, preserving the current context.
     redirect_url = url_for('notes_page', folder_id=parent_folder_id) if parent_folder_id else url_for('notes_page')
     
     if not folder_name:
@@ -380,11 +417,12 @@ def add_folder():
             conn.commit()
             log_activity('folder_created', details={'folder_name': folder_name, 'parent_id': parent_folder_id, 'new_folder_id': new_folder_id})
             flash(f"Folder '{folder_name}' created.", 'success')
-            redirect_url = url_for('notes_page', folder_id=new_folder_id)
+            # REMOVED: No longer redirecting into the new folder.
         except Exception as e:
             conn.rollback()
             log_activity('folder_create_error', details={'folder_name': folder_name, 'error': str(e)})
             flash(f"Error: {e}", 'error')
+            
     return redirect(redirect_url)
 
 @app.route('/folder/<int:folder_id>/rename', methods=['POST'])
@@ -503,23 +541,25 @@ def view_note(note_id):
                 cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
                 current_folder = cur.fetchone()
             
-            parent_id_for_folder_list = current_folder['parent_folder_id'] if current_folder else None
-            if parent_id_for_folder_list:
-                cur.execute("SELECT * FROM folders WHERE parent_folder_id = %s AND user_id = 1 ORDER BY name", (parent_id_for_folder_list,))
-            else:
-                cur.execute("SELECT * FROM folders WHERE parent_folder_id IS NULL AND user_id = 1 ORDER BY name")
-            folders_to_display = cur.fetchall()
-            
+            # UPDATED: Use new helper functions for consistent nav
+            folder_tree = get_folder_tree(cur)
+            breadcrumbs = get_breadcrumbs(cur, folder_id)
+
             notes_in_same_folder = []
             if folder_id:
                 cur.execute("SELECT id, title, updated_at FROM notes WHERE folder_id = %s AND user_id = 1 ORDER BY updated_at DESC", (folder_id,))
                 notes_in_same_folder = cur.fetchall()
+            
+            cur.execute("SELECT id, title, updated_at FROM notes WHERE folder_id IS NULL AND user_id = 1 ORDER BY updated_at DESC")
+            orphaned_notes = cur.fetchall()
 
         return render_template('notes.html', 
-                               folders=folders_to_display, 
+                               folder_tree=folder_tree,
+                               breadcrumbs=breadcrumbs,
                                current_folder=current_folder, 
                                notes_in_folder=notes_in_same_folder, 
                                current_note=current_note,
+                               orphaned_notes=orphaned_notes,
                                content_for_editing=content_for_editing,
                                content_as_html=content_as_html,
                                backlinks=backlinks,
