@@ -21,8 +21,10 @@ idna==3.10
 itsdangerous==2.2.0
 Jinja2==3.1.6
 kiwisolver==1.4.8
+markdown-it-py==3.0.0
 MarkupSafe==3.0.2
 matplotlib==3.10.3
+mdurl==0.1.2
 numpy==2.3.0
 packaging==25.0
 pandas==2.3.0
