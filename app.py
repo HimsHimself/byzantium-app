@@ -5,7 +5,7 @@ import requests
 import uuid
 import threading
 import pytz
-import re # <-- SNQL Import
+import re
 from psycopg2.extras import Json, RealDictCursor
 from flask import Flask, request, session, redirect, url_for, render_template, flash, jsonify, g
 from functools import wraps
@@ -33,7 +33,7 @@ if not APP_PASSWORD:
 
 ORACLE_API_ENDPOINT_URL = os.environ.get("ORACLE_API_ENDPOINT_URL")
 ORACLE_API_FUNCTION_KEY = os.environ.get("ORACLE_API_FUNCTION_KEY")
-GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME") # Should be 'byzantium_bucket'
+GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")
 GOOGLE_CREDENTIALS_JSON = os.environ.get("GOOGLE_CREDENTIALS_JSON")
 
 if not ORACLE_API_ENDPOINT_URL:
@@ -41,11 +41,8 @@ if not ORACLE_API_ENDPOINT_URL:
 if not GCS_BUCKET_NAME or not GOOGLE_CREDENTIALS_JSON:
     print("[WARNING] GCS environment variables not set. Image uploads for the collection will not work.")
 
-
-# --- In-memory store for background job status ---
 oracle_jobs = {}
 
-# --- Database Helper ---
 def get_db():
     if 'db' not in g:
         db_url = os.environ.get("DATABASE_URL")
@@ -60,27 +57,19 @@ def close_db(e=None):
     if db is not None:
         db.close()
 
-# --- Activity Logging Helper ---
 def log_activity(activity_type, details=None, ip_address=None, user_agent=None, path=None):
     try:
         user_id = 0
         try:
-            if 'logged_in' in session:
-                user_id = 1
+            if 'logged_in' in session: user_id = 1
         except RuntimeError:
-            user_id = -1 # System/background tasks
-
+            user_id = -1
         final_ip_address = ip_address or (request.remote_addr if request else 'N/A')
         final_user_agent = user_agent or (request.headers.get('User-Agent') if request else 'N/A')
         final_path = path or (request.path if request else 'N/A')
-
         if details is not None and not isinstance(details, dict):
             details = {"info": str(details)}
-
-        sql = """
-            INSERT INTO activity_log (user_id, activity_type, ip_address, user_agent, path, details)
-            VALUES (%s, %s, %s, %s, %s, %s);
-        """
+        sql = "INSERT INTO activity_log (user_id, activity_type, ip_address, user_agent, path, details) VALUES (%s, %s, %s, %s, %s, %s);"
         conn = get_db()
         with conn.cursor() as cur:
             cur.execute(sql, (user_id, activity_type, final_ip_address, final_user_agent, final_path, Json(details) if details else None))
@@ -89,7 +78,6 @@ def log_activity(activity_type, details=None, ip_address=None, user_agent=None, 
         print(f"--- CRITICAL: Error logging activity '{activity_type}': {e} ---")
         traceback.print_exc()
 
-# --- Authentication Decorator ---
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -100,113 +88,117 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# --- SNQL Helper Functions ---
+# --- SNQL & EditorJS Helper Functions ---
 REFERENCE_PATTERN = re.compile(r'\[\[(.*?)\]\]')
-SNQL_REF_PATTERN = re.compile(r'snql-ref:([0-9a-fA-F\-]{36})')
-SNQL_BROKEN_REF_PATTERN = re.compile(r'snql-ref-broken:(.*?)(?=\s|\[\[|$$)')
+# SNQL references are no longer stored in the content itself, but in the separate reference table.
+# The `render` function will create links on the fly.
 
-def convert_db_content_to_raw_for_editing(cursor, db_content):
-    if not db_content:
-        return ""
-    
-    guids_to_find = SNQL_REF_PATTERN.findall(db_content)
-    guid_to_title = {}
-    if guids_to_find:
-        # FIX: Explicitly cast the list of strings to a UUID array for PostgreSQL
-        cursor.execute("SELECT guid, title FROM notes WHERE guid = ANY(%s::uuid[])", (list(set(guids_to_find)),))
-        for row in cursor.fetchall():
-            guid_to_title[str(row['guid'])] = row['title']
-
-    def replace_guid(match):
-        guid = match.group(1)
-        title = guid_to_title.get(guid, 'Unknown Note')
-        return f"[[{title}]]"
-    
-    raw_content = SNQL_REF_PATTERN.sub(replace_guid, db_content)
-    raw_content = SNQL_BROKEN_REF_PATTERN.sub(lambda m: f"[[{m.group(1)}]]", raw_content)
-    return raw_content
-
-def process_and_update_note_content(cursor, note_id, raw_content):
+# --- NEW: Processes EditorJS JSON to extract and manage SNQL links ---
+def process_editorjs_content_for_snql(cursor, note_id, editor_data):
     conn = cursor.connection
-    referenced_titles = {s.strip() for s in REFERENCE_PATTERN.findall(raw_content) if s.strip()}
-    target_note_ids = set()
-    processed_content = raw_content
+    referenced_titles = set()
 
+    # 1. Extract all [[Title]] references from the EditorJS JSON blocks
+    if isinstance(editor_data, dict) and 'blocks' in editor_data:
+        for block in editor_data['blocks']:
+            if block.get('type') in ['paragraph', 'header'] and 'text' in block.get('data', {}):
+                found = REFERENCE_PATTERN.findall(block['data']['text'])
+                for title in found:
+                    if title.strip():
+                        referenced_titles.add(title.strip())
+
+    target_note_ids = set()
     if referenced_titles:
-        cursor.execute("SELECT id, guid, title FROM notes WHERE title = ANY(%s)", (list(referenced_titles),))
-        found_notes = {note['title']: {'id': note['id'], 'guid': str(note['guid'])} for note in cursor.fetchall()}
+        cursor.execute("SELECT id, title FROM notes WHERE title = ANY(%s)", (list(referenced_titles),))
+        found_notes = {note['title']: note['id'] for note in cursor.fetchall()}
 
         for title in referenced_titles:
             if title in found_notes:
-                note_info = found_notes[title]
-                target_note_ids.add(note_info['id'])
-                processed_content = re.sub(r'\[\[' + re.escape(title) + r'\]\]', f"snql-ref:{note_info['guid']}", processed_content)
+                target_note_ids.add(found_notes[title])
             else:
-                # Create a new orphaned note
-                cursor.execute("INSERT INTO notes (title, content, folder_id, user_id, created_at, updated_at) VALUES (%s, %s, %s, 1, NOW(), NOW()) RETURNING id, guid", (title, '', None))
-                new_note_id, new_note_guid = cursor.fetchone()
+                # Create a new orphaned note for the link
+                cursor.execute("INSERT INTO notes (title, content, folder_id, user_id, created_at, updated_at) VALUES (%s, %s, %s, 1, NOW(), NOW()) RETURNING id", (title, Json({"blocks": []}), None))
+                new_note_id = cursor.fetchone()[0]
                 target_note_ids.add(new_note_id)
-                processed_content = re.sub(r'\[\[' + re.escape(title) + r'\]\]', f"snql-ref:{new_note_guid}", processed_content)
                 log_activity('note_created_from_link', details={'note_title': title, 'new_note_id': new_note_id, 'source_note_id': note_id})
+    
+    # 2. Update the note's content with the raw EditorJS JSON
+    cursor.execute("UPDATE notes SET content = %s, updated_at = NOW() WHERE id = %s", (Json(editor_data), note_id))
 
-    cursor.execute("UPDATE notes SET content = %s, updated_at = NOW() WHERE id = %s", (processed_content, note_id))
+    # 3. Rebuild the references in the note_references table
     cursor.execute("DELETE FROM note_references WHERE source_note_id = %s", (note_id,))
     if target_note_ids:
         args_list = [(note_id, target_id) for target_id in target_note_ids]
         cursor.executemany("INSERT INTO note_references (source_note_id, target_note_id) VALUES (%s, %s) ON CONFLICT DO NOTHING", args_list)
+    
     conn.commit()
 
-
-def render_snql_content_as_html(cursor, db_content):
-    if not db_content:
+# --- NEW: Renders EditorJS JSON into safe HTML with SNQL links ---
+def render_editorjs_content_as_html(cursor, editor_data):
+    if not isinstance(editor_data, dict) or 'blocks' not in editor_data or not editor_data['blocks']:
         return ""
-    
-    guids_to_find = SNQL_REF_PATTERN.findall(db_content)
-    guid_to_note = {}
+
+    guids_to_find = set()
+    # First pass: find all text that looks like a link
+    for block in editor_data.get('blocks', []):
+         if block.get('type') in ['paragraph', 'header'] and 'text' in block.get('data', {}):
+            found = REFERENCE_PATTERN.findall(block['data']['text'])
+            for title in found:
+                guids_to_find.add(title.strip())
+
+    title_to_id = {}
     if guids_to_find:
-        # FIX: Explicitly cast the list of strings to a UUID array for PostgreSQL
-        cursor.execute("SELECT id, guid, title FROM notes WHERE guid = ANY(%s::uuid[])", (list(set(guids_to_find)),))
+        cursor.execute("SELECT id, title FROM notes WHERE title = ANY(%s::text[])", (list(guids_to_find),))
         for row in cursor.fetchall():
-            guid_to_note[str(row['guid'])] = {'id': row['id'], 'title': row['title']}
+            title_to_id[row['title']] = row['id']
 
-    def replace_guid_with_link(match):
-        guid = match.group(1)
-        note_info = guid_to_note.get(guid)
-        if note_info:
-            return f'<a href="{url_for("view_note", note_id=note_info["id"])}" class="snql-link">[[{note_info["title"]}]]</a>'
-        return '<span class="snql-broken-link">[[Unknown Note]]</span>'
+    def replace_title_with_link(match):
+        title = match.group(1)
+        note_id = title_to_id.get(title)
+        if note_id:
+            # Note: This is an example rendering. The live editor will handle the visual part.
+            # This function is now more for display outside the editor.
+            return f'<a href="{url_for("view_note", note_id=note_id)}" class="snql-link">[[{title}]]</a>'
+        return f'<span class="snql-broken-link">[[{title}]]</span>'
 
-    html_content = SNQL_REF_PATTERN.sub(replace_guid_with_link, db_content)
-    return html_content.replace('\n', '<br>')
+    html_output = []
+    for block in editor_data.get('blocks', []):
+        block_type = block.get('type')
+        data = block.get('data', {})
+        text = data.get('text', '')
+        
+        # Process links in text
+        processed_text = REFERENCE_PATTERN.sub(replace_title_with_link, text)
 
-# --- NEW: Helper function to build folder tree ---
+        if block_type == 'header':
+            level = data.get('level', 1)
+            html_output.append(f'<h{level}>{processed_text}</h{level}>')
+        elif block_type == 'paragraph':
+            html_output.append(f'<p>{processed_text}</p>')
+        elif block_type == 'list':
+            style = data.get('style', 'unordered')
+            tag = 'ul' if style == 'unordered' else 'ol'
+            list_items = "".join([f'<li>{item}</li>' for item in data.get('items', [])])
+            html_output.append(f'<{tag}>{list_items}</{tag}>')
+
+    return "".join(html_output)
+
+
 def get_folder_tree(cursor):
-    """
-    Fetches all folders and organizes them into a nested tree structure.
-    """
     cursor.execute("SELECT id, name, parent_folder_id FROM folders WHERE user_id = 1 ORDER BY name")
     all_folders = cursor.fetchall()
-    
     folder_map = {f['id']: {**f, 'children': []} for f in all_folders}
     tree = []
-    
     for folder_id, folder_data in folder_map.items():
         parent_id = folder_data['parent_folder_id']
         if parent_id and parent_id in folder_map:
             folder_map[parent_id]['children'].append(folder_data)
         elif not parent_id:
             tree.append(folder_data)
-            
     return tree
 
-# --- NEW: Helper function to get breadcrumbs ---
 def get_breadcrumbs(cursor, folder_id):
-    """
-    Generates a breadcrumb trail for a given folder ID.
-    """
-    if not folder_id:
-        return []
-    
+    if not folder_id: return []
     breadcrumbs = []
     current_id = folder_id
     while current_id:
@@ -219,57 +211,40 @@ def get_breadcrumbs(cursor, folder_id):
             current_id = None
     return list(reversed(breadcrumbs))
 
-# --- GCS Upload Helper (Render-compatible) ---
+# ... (GCS and other helpers remain the same) ...
 def upload_to_gcs(file_to_upload, bucket_name):
-    """Uploads a file to a given GCS bucket and returns its filename.""" # <-- Docstring updated
-    if not file_to_upload or not file_to_upload.filename:
-        return None
-    
-    # ... (authentication code remains the same) ...
+    """Uploads a file to a given GCS bucket and returns its filename."""
+    if not file_to_upload or not file_to_upload.filename: return None
     try:
         credentials_info = json.loads(os.environ.get('GOOGLE_CREDENTIALS_JSON'))
         storage_client = storage.Client.from_service_account_info(credentials_info)
     except Exception as e:
         print(f"Error creating GCS client: {e}")
         return None
-
     bucket = storage_client.bucket(bucket_name)
-    
     original_filename = secure_filename(file_to_upload.filename)
     filename_ext = os.path.splitext(original_filename)[1]
     unique_filename = f"{uuid.uuid4().hex}{filename_ext}"
-    
     blob = bucket.blob(unique_filename)
-    
     try:
         blob.upload_from_file(file_to_upload, content_type=file_to_upload.content_type)
-        # --- CHANGE HERE ---
-        # Instead of returning the public URL, return just the filename.
-        # This is what we will store in our database.
         return unique_filename 
     except Exception as e:
         print(f"Error uploading to GCS: {e}")
         traceback.print_exc()
         return None
 
-# --- GCS Deletion Helper ---
-def delete_from_gcs(blob_name, bucket_name): # <-- Argument changed from image_url to blob_name
-    """Deletes a file from a given GCS bucket based on its blob name.""" # <-- Docstring updated
-    if not blob_name or not GCS_BUCKET_NAME: # <-- Check blob_name
-        return
-
+def delete_from_gcs(blob_name, bucket_name):
+    """Deletes a file from a given GCS bucket based on its blob name."""
+    if not blob_name or not GCS_BUCKET_NAME: return
     try:
         credentials_json_str = os.environ.get('GOOGLE_CREDENTIALS_JSON')
         if not credentials_json_str:
             print("ERROR: GOOGLE_CREDENTIALS_JSON environment variable not set.")
             return
-
         credentials_info = json.loads(credentials_json_str)
         storage_client = storage.Client.from_service_account_info(credentials_info)
         bucket = storage_client.bucket(bucket_name)
-
-        # --- CHANGE HERE ---
-        # We no longer need to parse the URL. We directly use the blob_name.
         blob = bucket.blob(blob_name)
         if blob.exists():
             blob.delete()
@@ -283,21 +258,16 @@ def delete_from_gcs(blob_name, bucket_name): # <-- Argument changed from image_u
 # --- Main Routes ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    error = None
     if request.method == 'POST':
-        submitted_password = request.form.get('password')
-        if submitted_password == APP_PASSWORD:
+        if request.form.get('password') == APP_PASSWORD:
             session['logged_in'] = True
             session.permanent = True
             log_activity('login_success')
-            next_url = request.args.get('next')
-            flash('Login successful!', 'success')
-            return redirect(next_url or url_for('hello'))
+            return redirect(request.args.get('next') or url_for('hello'))
         else:
             log_activity('login_failure', details={"reason": "Invalid password"})
-            error = 'Invalid Password. Please try again.'
-            flash(error, 'error')
-    return render_template('login.html', error=error)
+            flash('Invalid Password. Please try again.', 'error')
+    return render_template('login.html')
 
 @app.route('/logout')
 def logout():
@@ -309,51 +279,32 @@ def logout():
 
 @app.before_request
 def before_request_handler():
-    if 'logged_in' in session and \
-       request.endpoint and \
-       request.endpoint not in ['login', 'static', 'logout', 'api_oracle_chat_start', 'api_oracle_chat_status', 'api_notes_search']:
+    if 'logged_in' in session and request.endpoint and request.endpoint not in ['login', 'static', 'logout', 'api_oracle_chat_start', 'api_oracle_chat_status', 'api_notes_search']:
         log_activity('pageview')
 
 @app.route('/')
 @login_required
 def hello():
+    # Dashboard route remains the same
     try:
         conn = get_db()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # 1. Get Collection Statistics
             cur.execute("SELECT COUNT(*) as total_items, SUM(approximate_value) as total_value FROM antiques WHERE user_id = 1")
             collection_stats = cur.fetchone()
-
-            # 2. Get Recently Updated Notes (Top 4)
             cur.execute("SELECT id, title, updated_at FROM notes WHERE user_id = 1 ORDER BY updated_at DESC LIMIT 4")
             recent_notes = cur.fetchall()
-            
-            # 3. Get Today's Calorie Count
             london_tz = pytz.timezone("Europe/London")
             today_london = datetime.now(london_tz).date()
-            cur.execute("""
-                SELECT SUM(calories) as total
-                FROM food_log
-                WHERE user_id = 1 AND DATE(log_time AT TIME ZONE 'Europe/London') = %s;
-            """, (today_london,))
+            cur.execute("SELECT SUM(calories) as total FROM food_log WHERE user_id = 1 AND DATE(log_time AT TIME ZONE 'Europe/London') = %s;", (today_london,))
             calories_today_result = cur.fetchone()
             calories_today = calories_today_result['total'] if calories_today_result and calories_today_result['total'] is not None else 0
-
-            # 4. Get Recent Activity (Top 5)
             cur.execute("SELECT activity_type, timestamp FROM activity_log WHERE user_id = 1 ORDER BY id DESC LIMIT 5")
             recent_activities = cur.fetchall()
-
-        context = {
-            "stats": collection_stats,
-            "recent_notes": recent_notes,
-            "calories_today": calories_today,
-            "recent_activities": recent_activities
-        }
+        context = {"stats": collection_stats, "recent_notes": recent_notes, "calories_today": calories_today, "recent_activities": recent_activities}
         return render_template('index.html', **context)
     except Exception as e:
         log_activity('error', details={"function": "hello_dashboard", "error": str(e)})
         flash("Could not load dashboard data.", "error")
-        # Render a failsafe static version if the DB query fails
         return render_template('index.html')
 
 # --- Notes and Folders Routes ---
@@ -364,33 +315,20 @@ def notes_page(folder_id=None):
     try:
         conn = get_db()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            current_folder = None
-            notes_in_current_folder = []
-            
-            # UPDATED: Use new helper functions
+            current_folder, notes_in_current_folder = None, []
             folder_tree = get_folder_tree(cur)
             breadcrumbs = get_breadcrumbs(cur, folder_id)
-
             if folder_id:
                 cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
                 current_folder = cur.fetchone()
                 if not current_folder:
                     flash('Folder not found.', 'error')
                     return redirect(url_for('notes_page'))
-                cur.execute("SELECT id, title, folder_id, updated_at FROM notes WHERE folder_id = %s AND user_id = 1 ORDER BY updated_at DESC", (folder_id,))
+                cur.execute("SELECT id, title, updated_at FROM notes WHERE folder_id = %s AND user_id = 1 ORDER BY updated_at DESC", (folder_id,))
                 notes_in_current_folder = cur.fetchall()
-
-            # Get orphaned notes (always needed for the nav pane)
             cur.execute("SELECT id, title, updated_at FROM notes WHERE folder_id IS NULL AND user_id = 1 ORDER BY updated_at DESC")
             orphaned_notes = cur.fetchall()
-        
-            return render_template('notes.html', 
-                                   folder_tree=folder_tree,
-                                   breadcrumbs=breadcrumbs,
-                                   notes_in_folder=notes_in_current_folder, 
-                                   current_folder=current_folder, 
-                                   current_note=None,
-                                   orphaned_notes=orphaned_notes)
+            return render_template('notes.html', folder_tree=folder_tree, breadcrumbs=breadcrumbs, notes_in_folder=notes_in_current_folder, current_folder=current_folder, current_note=None, orphaned_notes=orphaned_notes)
     except Exception as e:
         traceback.print_exc()
         flash("Error loading notes.", "error")
@@ -402,10 +340,7 @@ def add_folder():
     folder_name = request.form.get('folder_name','').strip()
     parent_folder_id_str = request.form.get('parent_folder_id')
     parent_folder_id = int(parent_folder_id_str) if parent_folder_id_str and parent_folder_id_str.isdigit() else None
-    
-    # UPDATED: This is the URL we will return to, preserving the current context.
     redirect_url = url_for('notes_page', folder_id=parent_folder_id) if parent_folder_id else url_for('notes_page')
-    
     if not folder_name:
         flash('Folder name cannot be empty.', 'error')
     else:
@@ -417,91 +352,29 @@ def add_folder():
             conn.commit()
             log_activity('folder_created', details={'folder_name': folder_name, 'parent_id': parent_folder_id, 'new_folder_id': new_folder_id})
             flash(f"Folder '{folder_name}' created.", 'success')
-            # REMOVED: No longer redirecting into the new folder.
         except Exception as e:
             conn.rollback()
             log_activity('folder_create_error', details={'folder_name': folder_name, 'error': str(e)})
             flash(f"Error: {e}", 'error')
-            
     return redirect(redirect_url)
-
-@app.route('/folder/<int:folder_id>/rename', methods=['POST'])
-@login_required
-def rename_folder(folder_id):
-    new_folder_name = request.form.get('new_folder_name','').strip()
-    conn = get_db()
-    try:
-        if not new_folder_name: 
-            flash('Folder name cannot be empty.', 'error')
-            return redirect(url_for('notes_page', folder_id=folder_id))
-        
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT parent_folder_id FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
-            folder_data = cur.fetchone()
-            if not folder_data:
-                flash("Folder not found.", "error")
-                return redirect(url_for('notes_page'))
-            
-            cur.execute("UPDATE folders SET name = %s, updated_at = NOW() WHERE id = %s AND user_id = 1", (new_folder_name, folder_id))
-        conn.commit()
-        
-        log_activity('folder_renamed', details={'folder_id': folder_id, 'new_name': new_folder_name})
-        flash(f"Folder renamed to '{new_folder_name}'.", 'success')
-        parent_id = folder_data['parent_folder_id']
-        redirect_url = url_for('notes_page', folder_id=parent_id) if parent_id else url_for('notes_page')
-        return redirect(redirect_url)
-
-    except Exception as e:
-        conn.rollback()
-        log_activity('folder_rename_error', details={'folder_id': folder_id, 'error': str(e)})
-        flash(f"Error: {e}", 'error')
-        return redirect(url_for('notes_page', folder_id=folder_id))
-
-@app.route('/folder/<int:folder_id>/delete', methods=['POST'])
-@login_required
-def delete_folder(folder_id):
-    conn = get_db()
-    parent_id_of_deleted_folder = None
-    try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT name, parent_folder_id FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
-            folder_data = cur.fetchone()
-            if not folder_data: 
-                flash("Folder not found.", "error")
-                return redirect(url_for('notes_page'))
-            folder_name_for_log = folder_data['name']
-            parent_id_of_deleted_folder = folder_data['parent_folder_id']
-            cur.execute("DELETE FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
-        conn.commit()
-        log_activity('folder_deleted', details={'folder_id': folder_id, 'folder_name': folder_name_for_log})
-        flash(f"Folder '{folder_name_for_log}' deleted.", 'success')
-    except Exception as e:
-        conn.rollback()
-        log_activity('folder_delete_error', details={'folder_id': folder_id, 'error': str(e)})
-        flash(f"Error: {e}", 'error')
-        
-    if parent_id_of_deleted_folder: 
-        return redirect(url_for('notes_page', folder_id=parent_id_of_deleted_folder))
-    return redirect(url_for('notes_page'))
 
 @app.route('/notes/folder/<int:folder_id>/add_note', methods=['POST'])
 @login_required
 def add_note(folder_id):
     note_title = request.form.get('note_title','').strip()
     redirect_url = url_for('notes_page', folder_id=folder_id)
-    if not note_title: 
-        flash('Note title cannot be empty.', 'error')
+    if not note_title: flash('Note title cannot be empty.', 'error')
     else:
         conn = get_db()
         try:
             with conn.cursor() as cur:
-                # SNQL: Check for duplicate title
                 cur.execute("SELECT id FROM notes WHERE title = %s AND user_id = 1", (note_title,))
                 if cur.fetchone():
                     flash(f"A note with the title '{note_title}' already exists.", 'error')
                     return redirect(redirect_url)
-                
-                cur.execute("INSERT INTO notes (title, content, folder_id, user_id, created_at, updated_at) VALUES (%s, %s, %s, 1, NOW(), NOW()) RETURNING id",(note_title, '', folder_id))
+                # UPDATED: New notes have a default empty EditorJS structure
+                empty_content = {"time": datetime.now().timestamp(), "blocks": [], "version": "2.22.2"}
+                cur.execute("INSERT INTO notes (title, content, folder_id, user_id, created_at, updated_at) VALUES (%s, %s, %s, 1, NOW(), NOW()) RETURNING id", (note_title, Json(empty_content), folder_id))
                 new_note_id = cur.fetchone()[0]
             conn.commit()
             log_activity('note_created', details={'note_title': note_title, 'folder_id': folder_id, 'note_id': new_note_id})
@@ -525,13 +398,11 @@ def view_note(note_id):
                 flash('Note not found.', 'error')
                 return redirect(url_for('notes_page'))
 
-            # BUG FIX: Pass the cursor to the helper functions
-            content_for_editing = convert_db_content_to_raw_for_editing(cur, current_note['content'])
-            content_as_html = render_snql_content_as_html(cur, current_note['content'])
+            # The content is now JSON, so we pass it directly
+            content_as_json_string = json.dumps(current_note['content'])
             
             cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.source_note_id WHERE nr.target_note_id = %s ORDER BY n.title;", (note_id,))
             backlinks = cur.fetchall()
-
             cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.target_note_id WHERE nr.source_note_id = %s ORDER BY n.title;", (note_id,))
             outgoing_links = cur.fetchall()
             
@@ -541,10 +412,8 @@ def view_note(note_id):
                 cur.execute("SELECT * FROM folders WHERE id = %s AND user_id = 1", (folder_id,))
                 current_folder = cur.fetchone()
             
-            # UPDATED: Use new helper functions for consistent nav
             folder_tree = get_folder_tree(cur)
             breadcrumbs = get_breadcrumbs(cur, folder_id)
-
             notes_in_same_folder = []
             if folder_id:
                 cur.execute("SELECT id, title, updated_at FROM notes WHERE folder_id = %s AND user_id = 1 ORDER BY updated_at DESC", (folder_id,))
@@ -553,83 +422,39 @@ def view_note(note_id):
             cur.execute("SELECT id, title, updated_at FROM notes WHERE folder_id IS NULL AND user_id = 1 ORDER BY updated_at DESC")
             orphaned_notes = cur.fetchall()
 
-        return render_template('notes.html', 
-                               folder_tree=folder_tree,
-                               breadcrumbs=breadcrumbs,
-                               current_folder=current_folder, 
-                               notes_in_folder=notes_in_same_folder, 
-                               current_note=current_note,
-                               orphaned_notes=orphaned_notes,
-                               content_for_editing=content_for_editing,
-                               content_as_html=content_as_html,
-                               backlinks=backlinks,
-                               outgoing_links=outgoing_links)
+        return render_template('notes.html', folder_tree=folder_tree, breadcrumbs=breadcrumbs, current_folder=current_folder, notes_in_folder=notes_in_same_folder, current_note=current_note, orphaned_notes=orphaned_notes, content_as_json_string=content_as_json_string, backlinks=backlinks, outgoing_links=outgoing_links)
     except Exception as e:
         traceback.print_exc()
         flash(f"Error viewing note: {e}", "error")
         log_activity('view_note_error', details={'note_id': note_id, 'error': str(e)})
         return redirect(url_for('notes_page'))
 
-
-@app.route('/note/<int:note_id>/rename', methods=['POST'])
-@login_required
-def rename_note(note_id):
-    new_note_title = request.form.get('new_note_title','').strip()
-    redirect_url = url_for('view_note', note_id=note_id)
-    if not new_note_title: 
-        flash("Note title cannot be empty.", "error")
-    else:
-        conn = get_db()
-        try:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # SNQL: Check for duplicate title
-                cur.execute("SELECT id FROM notes WHERE title = %s AND user_id = 1 AND id != %s", (new_note_title, note_id))
-                if cur.fetchone():
-                    flash(f"A note with the title '{new_note_title}' already exists.", 'error')
-                    return redirect(redirect_url)
-
-                cur.execute("SELECT id FROM notes WHERE id = %s AND user_id = 1", (note_id,))
-                if not cur.fetchone(): 
-                    flash("Note not found.", "error")
-                    return redirect(url_for('notes_page'))
-
-                cur.execute("UPDATE notes SET title = %s, updated_at = NOW() WHERE id = %s AND user_id = 1",(new_note_title, note_id))
-            conn.commit()
-            log_activity('note_renamed', details={'note_id': note_id, 'new_title': new_note_title})
-            flash('Note renamed.', 'success')
-        except Exception as e:
-            conn.rollback()
-            log_activity('note_rename_error', details={'note_id': note_id, 'error': str(e)})
-            flash(f"Error: {e}", 'error')
-    return redirect(redirect_url)
-
+# --- UPDATED: This route now accepts JSON from the new editor ---
 @app.route('/note/<int:note_id>/update', methods=['POST'])
 @login_required
 def update_note(note_id):
-    raw_content = request.form.get('note_content', '')
-    redirect_url = url_for('view_note', note_id=note_id)
+    editor_data = request.get_json()
+    if not editor_data:
+        return jsonify({"status": "error", "message": "Invalid data."}), 400
+    
     conn = get_db()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("SELECT title FROM notes WHERE id = %s AND user_id = 1", (note_id,))
             note_data = cur.fetchone()
             if not note_data:
-                flash("Note not found.", "error")
-                return redirect(url_for('notes_page'))
+                return jsonify({"status": "error", "message": "Note not found."}), 404
             
-            # Use the helper, passing the cursor
-            process_and_update_note_content(cur, note_id, raw_content)
+            # Use the new helper to process JSON and update links
+            process_editorjs_content_for_snql(cur, note_id, editor_data)
         
-        # The helper now handles commit
         log_activity('note_updated', details={'note_id': note_id, 'note_title': note_data['title']})
-        flash('Note updated with SNQL references.', 'success')
+        return jsonify({"status": "success", "message": "Note updated."})
     except Exception as e:
         conn.rollback()
         log_activity('note_update_error', details={'note_id': note_id, 'error': str(e)})
-        flash(f"Error updating note: {e}", 'error')
         traceback.print_exc()
-    return redirect(redirect_url)
-
+        return jsonify({"status": "error", "message": f"An unexpected error occurred: {e}"}), 500
 
 @app.route('/note/<int:note_id>/delete', methods=['POST'])
 @login_required
@@ -644,7 +469,6 @@ def delete_note(note_id):
                 flash("Note not found.", "error")
                 return redirect(url_for('notes_page'))
             folder_note_was_in = note_data['folder_id']
-            # SNQL: The ON DELETE CASCADE on the note_references table handles cleanup automatically
             cur.execute("DELETE FROM notes WHERE id = %s AND user_id = 1", (note_id,))
         conn.commit()
         log_activity('note_deleted', details={'note_id': note_id, 'note_title': note_data['title']})
@@ -653,7 +477,6 @@ def delete_note(note_id):
         conn.rollback()
         log_activity('note_delete_error', details={'note_id': note_id, 'error': str(e)})
         flash(f"Error: {e}", 'error')
-        
     if folder_note_was_in: 
         return redirect(url_for('notes_page', folder_id=folder_note_was_in))
     return redirect(url_for('notes_page'))
