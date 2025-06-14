@@ -1,4 +1,5 @@
 {% extends "index.html" %}
+{% import '_macros.html' as macros with context %}
 
 {% block content %}
 <div class="content-card rounded-lg p-4 md:p-6">
@@ -7,7 +8,6 @@
             My Collection
         </h2>
 
-        <!-- Desktop buttons -->
         <div class="hidden md:flex items-center">
             <a href="{{ url_for('collection_dashboard') }}" class="text-sm font-semibold text-purple-700 hover:underline mr-6">
                 View Dashboard
@@ -20,23 +20,19 @@
             </a>
         </div>
         
-        <!-- Mobile header: Dashboard link -->
-         <div class="md:hidden">
+        <div class="md:hidden">
              <a href="{{ url_for('collection_dashboard') }}" class="text-sm font-semibold text-purple-700 hover:underline">
                 Dashboard
             </a>
         </div>
     </div>
 
-    <!-- Filter Form -->
     <div class="mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200">
         <form method="GET" action="{{ url_for('collection_page') }}" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 items-end">
-            <!-- Wildcard Search -->
             <div class="sm:col-span-2 md:col-span-3 lg:col-span-2">
                 <label for="q" class="block text-sm font-medium text-slate-600 mb-1">Search Collection</label>
                 <input type="text" name="q" id="q" value="{{ filters.q or '' }}" placeholder="e.g., Iron Cross, letter, medal..." class="form-input block w-full p-2 rounded-md border-slate-300 shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-200 focus:ring-opacity-50">
             </div>
-            <!-- Item Type -->
             <div>
                 <label for="item_type" class="block text-sm font-medium text-slate-600 mb-1">Item Type</label>
                 <select name="item_type" id="item_type" class="form-select block w-full p-2 rounded-md border-slate-300 shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-200 focus:ring-opacity-50">
@@ -46,7 +42,6 @@
                     {% endfor %}
                 </select>
             </div>
-            <!-- Period -->
             <div>
                 <label for="period" class="block text-sm font-medium text-slate-600 mb-1">Period</label>
                 <select name="period" id="period" class="form-select block w-full p-2 rounded-md border-slate-300 shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-200 focus:ring-opacity-50">
@@ -56,7 +51,6 @@
                     {% endfor %}
                 </select>
             </div>
-            <!-- Sellable -->
             <div>
                 <label for="is_sellable" class="block text-sm font-medium text-slate-600 mb-1">Sellable</label>
                 <select name="is_sellable" id="is_sellable" class="form-select block w-full p-2 rounded-md border-slate-300 shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-200 focus:ring-opacity-50">
@@ -65,7 +59,6 @@
                     <option value="no" {% if filters.is_sellable == 'no' %}selected{% endif %}>No</option>
                 </select>
             </div>
-            <!-- Buttons -->
             <div class="flex items-center space-x-2 lg:col-start-5">
                  <button type="submit" class="btn-primary w-full justify-center font-semibold py-2 px-4 rounded-md">Filter</button>
                  <a href="{{ url_for('collection_page') }}" class="w-full text-center bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded-md">Reset</a>
@@ -74,7 +67,6 @@
     </div>
 
     {% if items %}
-        <!-- mobile list -->
         <div class="grid grid-cols-1 gap-4 md:hidden">
             {% for item in items %}
             <div class="rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
@@ -132,41 +124,40 @@
             {% endfor %}
         </div>
 
-        <!-- desktop table -->
         <div class="hidden md:block overflow-x-auto">
             <table class="w-full text-sm text-left text-slate-500">
                 <thead class="text-xs text-slate-700 uppercase bg-slate-100">
                     <tr>
-                        <th scope="col" class="px-6 py-2">Item Name</th>
-                        <th scope="col" class="px-6 py-2">Item Type</th>
-                        <th scope="col" class="px-6 py-2">Period</th>
-                        <th scope="col" class="px-6 py-2">Approx. Value</th>
-                        <th scope="col" class="px-6 py-2">Sellable</th>
-                        <th scope="col" class="px-6 py-2">Date Added</th>
-                        <th scope="col" class="px-6 py-2 text-center">Image</th>
-                        <th scope="col" class="px-6 py-2 text-center">Actions</th>
+                        <th scope="col" class="px-6 py-3">Item Name</th>
+                        <th scope="col" class="px-6 py-3">Item Type</th>
+                        <th scope="col" class="px-6 py-3">Period</th>
+                        <th scope="col" class="px-6 py-3">Approx. Value</th>
+                        <th scope="col" class="px-6 py-3">Sellable</th>
+                        <th scope="col" class="px-6 py-3">Date Added</th>
+                        <th scope="col" class="px-6 py-3 text-center">Image</th>
+                        <th scope="col" class="px-6 py-3 text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in items %}
                     <tr class="bg-white border-b hover:bg-slate-50">
-                        <td class="px-6 py-2 font-medium text-slate-900">
+                        <td class="px-6 py-3 font-medium text-slate-900 align-middle">
                             <a href="{{ url_for('view_collection_item', item_id=item.id) }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">
                                 {{ item.name }}
                             </a>
                         </td>
-                        <td class="px-6 py-2">{{ item.item_type or 'N/A' }}</td>
-                        <td class="px-6 py-2">{{ item.period or 'N/A' }}</td>
-                        <td class="px-6 py-2">{% if item.approximate_value is not none %}£{{ "%.2f"|format(item.approximate_value) }}{% else %}N/A{% endif %}</td>
-                        <td class="px-6 py-2">
+                        <td class="px-6 py-3 align-middle">{{ item.item_type or 'N/A' }}</td>
+                        <td class="px-6 py-3 align-middle">{{ item.period or 'N/A' }}</td>
+                        <td class="px-6 py-3 align-middle">{% if item.approximate_value is not none %}£{{ "%.2f"|format(item.approximate_value) }}{% else %}N/A{% endif %}</td>
+                        <td class="px-6 py-3 align-middle">
                             {% if item.is_sellable %}
                                 <span class="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">Yes</span>
                             {% else %}
                                 <span class="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700">No</span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-2">{{ item.created_at.strftime('%d %b %Y') if item.created_at else 'N/A' }}</td>
-                        <td class="px-6 py-2 text-center">
+                        <td class="px-6 py-3 align-middle">{{ item.created_at.strftime('%d %b %Y') if item.created_at else 'N/A' }}</td>
+                        <td class="px-6 py-3 text-center align-middle">
                             {% if item.image_url %}
                                 <a href="{{ url_for('serve_private_image', filename=item.image_url) }}" target="_blank" rel="noopener noreferrer" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">
                                     View
@@ -175,18 +166,23 @@
                                 <span class="text-slate-400">None</span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-2 text-center space-x-4">
-                            <a href="{{ url_for('edit_collection_item', item_id=item.id) }}" class="font-medium text-blue-600 hover:text-blue-800 hover:underline">Edit</a>
-                            <form action="{{ url_for('delete_collection_item', item_id=item.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this item?');" class="inline-block">
-                                <button type="submit" class="font-medium text-red-600 hover:text-red-800 hover:underline">Delete</button>
-                            </form>
+                        <td class="px-6 py-3 align-middle">
+                            <div class="flex items-center justify-center space-x-4">
+                                <a href="{{ url_for('edit_collection_item', item_id=item.id) }}" class="text-blue-600 hover:text-blue-800" title="Edit Item">
+                                    {{ macros.edit_icon() }}
+                                </a>
+                                <form action="{{ url_for('delete_collection_item', item_id=item.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this item?');" class="inline-block">
+                                    <button type="submit" class="text-red-600 hover:text-red-800" title="Delete Item">
+                                        {{ macros.delete_icon() }}
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-
     {% else %}
         <div class="p-6 text-center text-slate-500 italic border-t mt-4">
             {% if filters.q or filters.item_type or filters.period or filters.is_sellable %}
@@ -198,7 +194,6 @@
     {% endif %}
 </div>
 
-<!-- Floating Action Button for Mobile -->
 <a href="{{ url_for('add_collection_item') }}" class="md:hidden fixed bottom-6 right-6 bg-purple-600 hover:bg-purple-700 text-white rounded-full p-4 shadow-lg z-20 flex items-center justify-center">
     <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
       <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
