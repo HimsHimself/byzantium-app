@@ -830,7 +830,7 @@ def api_estimate_calories():
 
     # 3. Prepare the request to the external Gemini API
     # The prompt is specifically engineered to ask for a number only.
-    prompt = f"Please provide a single numerical estimate for the calories in the following food item. Do not include any explanation, units like 'kcal', or commas. Just the number. Food: '{description}'"
+    prompt = f"Please provide a single numerical estimate for the calories in the following food item. Do not include any explanation, markup, units like 'kcal', or commas. Just the number. Only return a number, nothing else. Food: '{description}'"
     payload = {"message": prompt, "history": []}
     headers = {"Content-Type": "application/json"}
     if ORACLE_API_FUNCTION_KEY:
