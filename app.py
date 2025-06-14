@@ -585,9 +585,9 @@ def api_notes_search():
     return jsonify([row['title'] for row in results])
 
 # --- Food Log Routes ---
-@app.route('/food_log', methods=['GET', 'POST'])
+@app.route('/food_log/add', methods=['GET', 'POST'])
 @login_required
-def food_log_page():
+def add_food_log():
     if request.method == 'POST':
         log_type = request.form.get('log_type')
         description = request.form.get('description', '').strip()
@@ -629,7 +629,7 @@ def food_log_page():
                     'description': description,
                     'calories': calories
                 })
-                return redirect(url_for('food_log_page'))
+                return redirect(url_for('add_food_log'))
             except Exception as e:
                 conn.rollback()
                 log_activity('food_log_error', details={'error': str(e)})
@@ -639,7 +639,7 @@ def food_log_page():
     now_in_london = datetime.now(london_tz)
     default_datetime = now_in_london.strftime('%Y-%m-%dT%H:%M')
     
-    return render_template('food_log.html', default_datetime=default_datetime)
+    return render_template('add_food_log.html', default_datetime=default_datetime)
 
 @app.route('/food_log/view')
 @login_required
@@ -718,7 +718,7 @@ def view_food_log():
     except Exception as e:
         log_activity('error', details={"function": "view_food_log", "error": str(e)})
         flash("Error fetching food log history.", "error")
-        return redirect(url_for('food_log_page'))
+        return redirect(url_for('add_food_log'))
     
 @app.route('/food_log/edit/<int:log_id>', methods=['GET', 'POST'])
 @login_required

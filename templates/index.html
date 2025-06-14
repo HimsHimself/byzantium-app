@@ -120,7 +120,7 @@
             <a href="{{ url_for('oracle_chat_page') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if request.endpoint == 'oracle_chat_page' %}active{% endif %}">
                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path></svg>
                 <span>Oracle Chat</span> </a>
-            <a href="{{ url_for('food_log_page') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if 'food_log' in request.endpoint %}active{% endif %}">
+            <a href="{{ url_for('add_food_log') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if 'food_log' in request.endpoint or 'add_food_log' in request.endpoint %}active{% endif %}">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                 <span>Food Log</span>
             </a>
@@ -226,7 +226,7 @@
                              <p class="text-2xl font-bold byzantine-purple-text">{{ "%.0f"|format(calories_today) }} <span class="text-lg font-medium text-slate-400">/ 2000 kcal</span></p>
                         </div>
                         <div class="mt-auto pt-4">
-                            <a href="{{ url_for('food_log_page') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">Log more food &rarr;</a>
+                            <a href="{{ url_for('add_food_log') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">Log more food &rarr;</a>
                         </div>
                     </div>
                     

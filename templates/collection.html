@@ -133,7 +133,7 @@
                         <th scope="col" class="px-6 py-3">Period</th>
                         <th scope="col" class="px-6 py-3">Approx. Value</th>
                         <th scope="col" class="px-6 py-3">Sellable</th>
-                        <th scope="col" class="px-6 py-3">Date Added</th>
+                        <th scope="col" class="px-6 py-3 whitespace-nowrap">Date Added</th>
                         <th scope="col" class="px-6 py-3 text-center">Image</th>
                         <th scope="col" class="px-6 py-3 text-center">Actions</th>
                     </tr>
@@ -156,7 +156,7 @@
                                 <span class="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700">No</span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-3 align-middle">{{ item.created_at.strftime('%d %b %Y') if item.created_at else 'N/A' }}</td>
+                        <td class="px-6 py-3 align-middle whitespace-nowrap">{{ item.created_at.strftime('%d %b %Y') if item.created_at else 'N/A' }}</td>
                         <td class="px-6 py-3 text-center align-middle">
                             {% if item.image_url %}
                                 <a href="{{ url_for('serve_private_image', filename=item.image_url) }}" target="_blank" rel="noopener noreferrer" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">
