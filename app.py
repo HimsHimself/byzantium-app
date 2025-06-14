@@ -830,7 +830,7 @@ def api_estimate_calories():
 
     # 3. Prepare the request to the external Gemini API
     # The prompt is specifically engineered to ask for a number only.
-    prompt = f"Please provide a single numerical estimate for the calories in the following food item. Do not include any explanation, markup, units like 'kcal', or commas. Just the number. Only return a number, nothing else. Food: '{description}'"
+    prompt = f"Please provide a single numerical estimate for the calories in the following food item. Do not include any explanation, units like 'kcal', or commas. Just the number. Food: '{description}'"
     payload = {"message": prompt, "history": []}
     headers = {"Content-Type": "application/json"}
     if ORACLE_API_FUNCTION_KEY:
@@ -841,7 +841,7 @@ def api_estimate_calories():
         
         # 4. Make the synchronous API call
         # A simple request is better here than the async job pattern used for the main chat.
-        response = requests.post(ORACLE_API_ENDPOINT_URL, json=payload, headers=headers, timeout=60) # 60 second timeout
+        response = requests.post(ORACLE_API_ENDPOINT_URL, json=payload, headers=headers, timeout=20) # 20 second timeout
         response.raise_for_status()
         
         api_response = response.json()
@@ -875,13 +875,77 @@ def collection_page():
     try:
         conn = get_db()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT * FROM antiques WHERE user_id = 1 ORDER BY created_at DESC")
+            # Get filter values from query parameters
+            query_search = request.args.get('q', '').strip()
+            item_type_filter = request.args.get('item_type', '').strip()
+            period_filter = request.args.get('period', '').strip()
+            sellable_filter = request.args.get('is_sellable', '').strip()
+
+            # Base query parts
+            base_query = "SELECT * FROM antiques WHERE user_id = 1"
+            where_clauses = []
+            params = []
+            
+            # Wildcard search across multiple text fields
+            if query_search:
+                where_clauses.append("(name ILIKE %s OR description ILIKE %s OR item_type ILIKE %s OR period ILIKE %s OR provenance ILIKE %s)")
+                search_term = f"%{query_search}%"
+                params.extend([search_term] * 5)
+
+            # Filter by item type
+            if item_type_filter:
+                where_clauses.append("item_type = %s")
+                params.append(item_type_filter)
+            
+            # Filter by period
+            if period_filter:
+                where_clauses.append("period = %s")
+                params.append(period_filter)
+
+            # Filter by sellable status
+            if sellable_filter == 'yes':
+                where_clauses.append("is_sellable = TRUE")
+            elif sellable_filter == 'no':
+                where_clauses.append("is_sellable = FALSE")
+
+            # Construct the final query
+            if where_clauses:
+                sql_query = f"{base_query} AND {' AND '.join(where_clauses)}"
+            else:
+                sql_query = base_query
+            
+            sql_query += " ORDER BY created_at DESC"
+
+            # Execute the query to get items
+            cur.execute(sql_query, tuple(params))
             items = cur.fetchall()
-        return render_template('collection.html', items=items)
+
+            # Get distinct values for filter dropdowns
+            cur.execute("SELECT DISTINCT item_type FROM antiques WHERE user_id = 1 AND item_type IS NOT NULL AND item_type != '' ORDER BY item_type")
+            item_types = [row['item_type'] for row in cur.fetchall()]
+            
+            cur.execute("SELECT DISTINCT period FROM antiques WHERE user_id = 1 AND period IS NOT NULL AND period != '' ORDER BY period")
+            periods = [row['period'] for row in cur.fetchall()]
+
+        # Store current filters to pass back to the template
+        current_filters = {
+            'q': query_search,
+            'item_type': item_type_filter,
+            'period': period_filter,
+            'is_sellable': sellable_filter
+        }
+
+        return render_template('collection.html', 
+                               items=items, 
+                               item_types=item_types, 
+                               periods=periods,
+                               filters=current_filters)
     except Exception as e:
         log_activity('error', details={"function": "collection_page", "error": str(e)})
+        traceback.print_exc()
         flash("Error fetching collection.", "error")
         return redirect(url_for('hello'))
+
 
 @app.route('/collection/dashboard')
 @login_required
