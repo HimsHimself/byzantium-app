@@ -814,6 +814,60 @@ def delete_food_log(log_id):
 
     return redirect(url_for('view_food_log'))
 
+# --- NEW: API Route for Calorie Estimation ---
+@app.route('/api/food_log/estimate_calories', methods=['POST'])
+@login_required
+def api_estimate_calories():
+    # 1. Check if the Oracle/Gemini API is configured
+    if not ORACLE_API_ENDPOINT_URL:
+        return jsonify({"error": "Calorie estimation service is not configured."}), 503
+
+    # 2. Get the food description from the request
+    data = request.get_json()
+    description = data.get('description')
+    if not description:
+        return jsonify({"error": "Food description cannot be empty."}), 400
+
+    # 3. Prepare the request to the external Gemini API
+    # The prompt is specifically engineered to ask for a number only.
+    prompt = f"Please provide a single numerical estimate for the calories in the following food item. Do not include any explanation, units like 'kcal', or commas. Just the number. Food: '{description}'"
+    payload = {"message": prompt, "history": []}
+    headers = {"Content-Type": "application/json"}
+    if ORACLE_API_FUNCTION_KEY:
+        headers["X-Api-Key"] = ORACLE_API_FUNCTION_KEY
+
+    try:
+        log_activity('calorie_estimation_sent', details={'description': description})
+        
+        # 4. Make the synchronous API call
+        # A simple request is better here than the async job pattern used for the main chat.
+        response = requests.post(ORACLE_API_ENDPOINT_URL, json=payload, headers=headers, timeout=20) # 20 second timeout
+        response.raise_for_status()
+        
+        api_response = response.json()
+        llm_reply = api_response.get("reply")
+
+        if not llm_reply:
+            raise ValueError("Received an empty reply from the calorie estimation API.")
+
+        # 5. Extract the number from the model's response
+        # Using regex to find the first sequence of digits in the reply.
+        match = re.search(r'\d+', llm_reply)
+        if match:
+            estimated_calories = int(match.group(0))
+            log_activity('calorie_estimation_success', details={'description': description, 'calories': estimated_calories})
+            return jsonify({"calories": estimated_calories})
+        else:
+            raise ValueError(f"Could not extract a number from the API's response. Got: '{llm_reply}'")
+
+    except requests.exceptions.Timeout:
+        log_activity('calorie_estimation_error', details={'description': description, 'error': 'API Timeout'})
+        return jsonify({"error": "The calorie estimation service timed out."}), 504
+    except Exception as e:
+        log_activity('calorie_estimation_error', details={'description': description, 'error': str(e)})
+        traceback.print_exc()
+        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
+
 # --- Collection Log Routes ---
 @app.route('/collection')
 @login_required

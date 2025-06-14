@@ -1,3 +1,5 @@
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -93,6 +95,12 @@
 <body class="flex h-screen antialiased">
 
     <div id="toast-container" class="fixed top-5 right-5 z-50 space-y-3 w-80"></div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div id="flash-messages" data-messages='{{ messages|tojson|safe }}' class="hidden"></div>
+        {% endif %}
+    {% endwith %}
 
     <aside class="sidebar w-64 space-y-2 py-4 px-2 fixed inset-y-0 left-0 transform md:translate-x-0 -translate-x-full transition-transform duration-200 ease-in-out z-30 shadow-lg">
         <div class="px-4 py-2 mb-4">
@@ -264,7 +272,7 @@
     </div>
 
     <script>
-        // --- NEW: Toast Notification Logic ---
+        // --- Toast Notification Logic ---
         function createToast(message, category) {
             const toastContainer = document.getElementById('toast-container');
             if (!toastContainer) return;
@@ -295,16 +303,23 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             // --- Process flashed messages into toasts on page load ---
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        createToast("{{ message|e }}", "{{ category }}");
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+            const flashContainer = document.getElementById('flash-messages');
+            if (flashContainer) {
+                // Parse the JSON data from the data attribute
+                const messages = JSON.parse(flashContainer.getAttribute('data-messages') || '[]');
+                if (messages && messages.length > 0) {
+                    messages.forEach(msg => {
+                        // The flashed message from Flask is an array: [category, message]
+                        if (Array.isArray(msg) && msg.length === 2) {
+                            const [category, message] = msg;
+                            createToast(message, category);
+                        }
+                    });
+                }
+            }
 
             // --- Mobile Sidebar Logic ---
-            const sidebar = document.querySelector('aside');
+            const sidebar = document.querySelector('aside.sidebar');
             const sidebarToggle = document.getElementById('sidebarToggle');
             const sidebarOverlay = document.getElementById('sidebarOverlay');
 

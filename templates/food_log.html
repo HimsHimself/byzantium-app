@@ -46,8 +46,18 @@
         </div>
 
         <div>
-            <label for="calories" class="block mb-2 text-sm font-medium text-slate-600">Calorie estimate</label>
-            <input type="number" name="calories" id="calories" class="form-input block w-full p-3 rounded-md" min="0">
+            <label for="calories" class="block mb-2 text-sm font-medium text-slate-600">Calorie estimate (you can use +, -, *)</label>
+            <div class="flex items-center space-x-2">
+                 <input type="text" name="calories" id="calories" class="form-input block w-full p-3 rounded-md" min="0" placeholder="e.g., 250 or 100+150">
+                 <button type="button" id="estimate-btn" class="px-4 py-2.5 text-sm font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200 transition-colors duration-200 whitespace-nowrap">
+                    <span id="estimate-btn-text">AI Estimate</span>
+                    <svg id="estimate-spinner" class="animate-spin h-5 w-5 text-purple-700 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                 </button>
+            </div>
+            <p id="ai-error-message" class="text-xs text-red-600 mt-1 h-4"></p>
         </div>
 
         <div>
@@ -60,4 +70,77 @@
         </div>
     </form>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const caloriesInput = document.getElementById('calories');
+    const estimateBtn = document.getElementById('estimate-btn');
+    const estimateBtnText = document.getElementById('estimate-btn-text');
+    const estimateSpinner = document.getElementById('estimate-spinner');
+    const descriptionInput = document.getElementById('description');
+    const aiErrorMessage = document.getElementById('ai-error-message');
+
+    // Feature 1: Simple math calculation on blur
+    if (caloriesInput) {
+        caloriesInput.addEventListener('blur', function() {
+            let expression = this.value.trim();
+            // Only allow numbers and basic operators +, -, *, to prevent security risks.
+            if (expression && /^[0-9+\-*/\s.]+$/.test(expression)) {
+                try {
+                    // Using Function constructor is safer than eval() for simple math.
+                    const result = new Function('return ' + expression)();
+                    this.value = Math.round(result);
+                } catch (e) {
+                    console.error('Could not calculate expression:', expression, e);
+                    aiErrorMessage.textContent = 'Invalid calculation.';
+                    setTimeout(() => aiErrorMessage.textContent = '', 3000);
+                }
+            }
+        });
+    }
+
+    // Feature 2: AI Calorie Estimation
+    if (estimateBtn) {
+        estimateBtn.addEventListener('click', async function() {
+            const description = descriptionInput.value.trim();
+            if (!description) {
+                aiErrorMessage.textContent = 'Please enter a description first.';
+                setTimeout(() => aiErrorMessage.textContent = '', 3000);
+                return;
+            }
+
+            // Set loading state
+            aiErrorMessage.textContent = '';
+            estimateBtn.disabled = true;
+            estimateSpinner.classList.remove('hidden');
+            estimateBtnText.classList.add('hidden');
+
+            try {
+                const response = await fetch("{{ url_for('api_estimate_calories') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ description: description })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    caloriesInput.value = data.calories;
+                } else {
+                    throw new Error(data.error || 'An unknown error occurred.');
+                }
+
+            } catch (error) {
+                console.error('Error estimating calories:', error);
+                aiErrorMessage.textContent = 'Error: ' + error.message;
+            } finally {
+                // Unset loading state
+                estimateBtn.disabled = false;
+                estimateSpinner.classList.add('hidden');
+                estimateBtnText.classList.remove('hidden');
+            }
+        });
+    }
+});
+</script>
 {% endblock %}
