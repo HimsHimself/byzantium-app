@@ -841,7 +841,7 @@ def api_estimate_calories():
         
         # 4. Make the synchronous API call
         # A simple request is better here than the async job pattern used for the main chat.
-        response = requests.post(ORACLE_API_ENDPOINT_URL, json=payload, headers=headers, timeout=20) # 20 second timeout
+        response = requests.post(ORACLE_API_ENDPOINT_URL, json=payload, headers=headers, timeout=60) # 60 second timeout
         response.raise_for_status()
         
         api_response = response.json()
