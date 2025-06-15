@@ -370,8 +370,8 @@ def move_note(note_id):
             # Update the folder_id for the note
             cur.execute("UPDATE notes SET folder_id = %s, updated_at = NOW() WHERE id = %s AND user_id = 1", (folder_id, note_id))
         conn.commit()
-        flash('Note moved successfully.', 'success')
         log_activity('note_moved', details={'note_id': note_id, 'target_folder_id': folder_id})
+        flash('Note moved successfully.', 'success')
     except Exception as e:
         conn.rollback()
         flash(f'Error moving note: {e}', 'error')
@@ -953,13 +953,70 @@ def collection_dashboard():
     try:
         conn = get_db()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT * FROM antiques WHERE user_id = 1")
+            # 1. Get filter values from query parameters
+            query_search = request.args.get('q', '').strip()
+            item_type_filter = request.args.get('item_type', '').strip()
+            period_filter = request.args.get('period', '').strip()
+            sellable_filter = request.args.get('is_sellable', '').strip()
+
+            # 2. Build a dynamic query based on filters
+            base_query = "SELECT * FROM antiques WHERE user_id = 1"
+            where_clauses = []
+            params = []
+            
+            if query_search:
+                where_clauses.append("(name ILIKE %s OR description ILIKE %s OR item_type ILIKE %s OR period ILIKE %s OR provenance ILIKE %s)")
+                search_term = f"%{query_search}%"
+                params.extend([search_term] * 5)
+
+            if item_type_filter:
+                where_clauses.append("item_type = %s")
+                params.append(item_type_filter)
+            
+            if period_filter:
+                where_clauses.append("period = %s")
+                params.append(period_filter)
+
+            if sellable_filter == 'yes':
+                where_clauses.append("is_sellable = TRUE")
+            elif sellable_filter == 'no':
+                where_clauses.append("is_sellable = FALSE")
+
+            if where_clauses:
+                sql_query = f"{base_query} AND {' AND '.join(where_clauses)}"
+            else:
+                sql_query = base_query
+
+            # 3. Execute the query to get the filtered items
+            cur.execute(sql_query, tuple(params))
             items = cur.fetchall()
 
-        if not items:
-            flash("No items in collection to create a dashboard.", "info")
-            return redirect(url_for('collection_page'))
+            # 4. Get distinct values for filter dropdowns (these should be from all items, not just filtered ones)
+            cur.execute("SELECT DISTINCT item_type FROM antiques WHERE user_id = 1 AND item_type IS NOT NULL AND item_type != '' ORDER BY item_type")
+            item_types = [row['item_type'] for row in cur.fetchall()]
+            
+            cur.execute("SELECT DISTINCT period FROM antiques WHERE user_id = 1 AND period IS NOT NULL AND period != '' ORDER BY period")
+            periods = [row['period'] for row in cur.fetchall()]
 
+        # Store current filters to pass back to the template
+        current_filters = {
+            'q': query_search,
+            'item_type': item_type_filter,
+            'period': period_filter,
+            'is_sellable': sellable_filter
+        }
+
+        # If no items match the filters, render the dashboard with a message
+        if not items:
+            return render_template('collection_dashboard.html', 
+                                   stats=None, 
+                                   plot_url1=None, 
+                                   plot_url2=None,
+                                   filters=current_filters,
+                                   item_types=item_types,
+                                   periods=periods)
+
+        # 5. If items are found, proceed with calculations and plotting
         df = pd.DataFrame(items)
         df['approximate_value'] = pd.to_numeric(df['approximate_value'], errors='coerce').fillna(0)
 
@@ -968,54 +1025,6 @@ def collection_dashboard():
         total_items = len(df)
         items_with_value = df[df['approximate_value'] > 0].shape[0]
         
-        # --- Value by Type ---
-        value_by_type = df.groupby('item_type')['approximate_value'].sum().nlargest(10).sort_values()
-        
-        # --- Value by Period ---
-        value_by_period = df.groupby('period')['approximate_value'].sum().nlargest(10).sort_values()
-
-        # --- Plotting ---
-        plt.style.use('seaborn-v0_8-whitegrid')
-        bg_color = '#FDFDF6'
-        text_color = '#2d3748'
-        bar_color = '#4B0082'
-        
-        # Plot 1: Value by Type
-        fig1, ax1 = plt.subplots(figsize=(10, 6))
-        fig1.patch.set_facecolor(bg_color)
-        ax1.set_facecolor(bg_color)
-        value_by_type.plot(kind='barh', ax=ax1, color=bar_color)
-        ax1.set_title('Top 10 Collection Value by Item Type', fontsize=16, color=text_color, pad=20)
-        ax1.set_xlabel('Total Approximate Value (£)', color=text_color)
-        ax1.set_ylabel('Item Type', color=text_color)
-        ax1.tick_params(colors=text_color)
-        ax1.spines['top'].set_visible(False)
-        ax1.spines['right'].set_visible(False)
-        plt.tight_layout()
-        img1 = io.BytesIO()
-        plt.savefig(img1, format='png', bbox_inches='tight')
-        img1.seek(0)
-        plot_url1 = base64.b64encode(img1.getvalue()).decode()
-        plt.close(fig1)
-
-        # Plot 2: Value by Period
-        fig2, ax2 = plt.subplots(figsize=(10, 6))
-        fig2.patch.set_facecolor(bg_color)
-        ax2.set_facecolor(bg_color)
-        value_by_period.plot(kind='barh', ax=ax2, color=bar_color)
-        ax2.set_title('Top 10 Collection Value by Period', fontsize=16, color=text_color, pad=20)
-        ax2.set_xlabel('Total Approximate Value (£)', color=text_color)
-        ax2.set_ylabel('Period', color=text_color)
-        ax2.tick_params(colors=text_color)
-        ax2.spines['top'].set_visible(False)
-        ax2.spines['right'].set_visible(False)
-        plt.tight_layout()
-        img2 = io.BytesIO()
-        plt.savefig(img2, format='png', bbox_inches='tight')
-        img2.seek(0)
-        plot_url2 = base64.b64encode(img2.getvalue()).decode()
-        plt.close(fig2)
-
         stats = {
             "total_value": total_value,
             "total_items": total_items,
@@ -1023,7 +1032,58 @@ def collection_dashboard():
             "average_value": total_value / items_with_value if items_with_value > 0 else 0
         }
 
-        return render_template('collection_dashboard.html', stats=stats, plot_url1=plot_url1, plot_url2=plot_url2)
+        # --- Plotting ---
+        plot_url1, plot_url2 = None, None
+        plt.style.use('seaborn-v0_8-whitegrid')
+        bg_color, text_color, bar_color = '#FDFDF6', '#2d3748', '#4B0082'
+
+        # Plot 1: Value by Type
+        if not df.empty and 'item_type' in df.columns and df['item_type'].notna().any():
+            value_by_type = df.groupby('item_type')['approximate_value'].sum().nlargest(10).sort_values()
+            if not value_by_type.empty:
+                fig1, ax1 = plt.subplots(figsize=(10, 6))
+                fig1.patch.set_facecolor(bg_color)
+                ax1.set_facecolor(bg_color)
+                value_by_type.plot(kind='barh', ax=ax1, color=bar_color)
+                ax1.set_title('Top 10 Collection Value by Item Type', fontsize=16, color=text_color, pad=20)
+                ax1.set_xlabel('Total Approximate Value (£)', color=text_color)
+                ax1.set_ylabel('Item Type', color=text_color)
+                ax1.tick_params(colors=text_color)
+                ax1.spines['top'].set_visible(False); ax1.spines['right'].set_visible(False)
+                plt.tight_layout()
+                img1 = io.BytesIO()
+                plt.savefig(img1, format='png', bbox_inches='tight')
+                img1.seek(0)
+                plot_url1 = base64.b64encode(img1.getvalue()).decode()
+                plt.close(fig1)
+
+        # Plot 2: Value by Period
+        if not df.empty and 'period' in df.columns and df['period'].notna().any():
+            value_by_period = df.groupby('period')['approximate_value'].sum().nlargest(10).sort_values()
+            if not value_by_period.empty:
+                fig2, ax2 = plt.subplots(figsize=(10, 6))
+                fig2.patch.set_facecolor(bg_color)
+                ax2.set_facecolor(bg_color)
+                value_by_period.plot(kind='barh', ax=ax2, color=bar_color)
+                ax2.set_title('Top 10 Collection Value by Period', fontsize=16, color=text_color, pad=20)
+                ax2.set_xlabel('Total Approximate Value (£)', color=text_color)
+                ax2.set_ylabel('Period', color=text_color)
+                ax2.tick_params(colors=text_color)
+                ax2.spines['top'].set_visible(False); ax2.spines['right'].set_visible(False)
+                plt.tight_layout()
+                img2 = io.BytesIO()
+                plt.savefig(img2, format='png', bbox_inches='tight')
+                img2.seek(0)
+                plot_url2 = base64.b64encode(img2.getvalue()).decode()
+                plt.close(fig2)
+
+        return render_template('collection_dashboard.html', 
+                               stats=stats, 
+                               plot_url1=plot_url1, 
+                               plot_url2=plot_url2,
+                               filters=current_filters,
+                               item_types=item_types,
+                               periods=periods)
 
     except Exception as e:
         log_activity('error', details={"function": "collection_dashboard", "error": str(e)})
