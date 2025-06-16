@@ -171,13 +171,13 @@
             {% block content %}
             <div class="space-y-8">
                 <div class="p-6 rounded-lg" style="background-image: linear-gradient(to top right, var(--imperial-purple), #6d28d9);">
-                    <h2 class="text-3xl font-bold text-white">Your Imperial Dashboard</h2>
-                    <p class="text-purple-200 mt-1">A summary of your personal archives and daily logs.</p>
+                    <h2 class="text-2xl lg:text-3xl font-bold text-white">Your Imperial Dashboard</h2>
+                    <p class="text-purple-200 mt-1 text-sm lg:text-base">A summary of your personal archives and daily logs.</p>
                 </div>
             
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-                    <div class="content-card p-6 flex flex-col lg:col-span-1 min-h-[400px]">
+                    <div class="content-card p-6 flex flex-col lg:col-span-2 min-h-[450px]">
                         <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
                             <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             Tasks
@@ -208,8 +208,8 @@
                         </form>
                     </div>
 
-                    <div class="content-card p-6 flex flex-col lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="flex flex-col">
+                    <div class="lg:col-span-1 space-y-8">
+                        <div class="content-card p-6 flex flex-col">
                             <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
                                 <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>
                                 Scribe's Desk
@@ -231,7 +231,7 @@
                             </div>
                         </div>
 
-                        <div class="flex flex-col">
+                        <div class="content-card p-6 flex flex-col">
                             <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
                                 <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m12 0V6a3 3 0 00-3-3H9a3 3 0 00-3 3v3" /></svg>
                                 Imperial Treasury
@@ -380,38 +380,16 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (response.ok) {
+                         // Reload the page on success to get the correctly sorted list
+                        window.location.reload();
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.error) {
                         createToast(data.error, 'error');
-                    } else {
-                        const noTasksMsg = document.getElementById('no-tasks-msg');
-                        if (noTasksMsg) noTasksMsg.remove();
-                        
-                        const newTaskEl = document.createElement('div');
-                        newTaskEl.className = 'task-item flex items-center justify-between py-2';
-                        newTaskEl.dataset.taskId = data.id;
-
-                        let dueDateHtml = '';
-                        if (data.due_date) {
-                             const date = new Date(data.due_date);
-                             const formattedDate = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ', ' + date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-                             dueDateHtml = `<span class="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full whitespace-nowrap">${formattedDate}</span>`;
-                        }
-
-                        newTaskEl.innerHTML = `
-                            <div class="flex items-center">
-                                <input id="task-${data.id}" type="checkbox" class="form-checkbox h-5 w-5 rounded text-purple-600 focus:ring-purple-500">
-                                <label for="task-${data.id}" class="ml-3 text-sm font-medium text-slate-700">${data.title}</label>
-                            </div>
-                            ${dueDateHtml}
-                        `;
-                        // This will just add to the end. For a fully sorted list, a page reload would be simplest.
-                        // Or a more complex JS sorting function could be implemented. Appending is fine for now.
-                        taskList.appendChild(newTaskEl);
-                        newTaskTitleInput.value = '';
-                        newTaskDueDateInput.value = '';
-                        createToast('Task added!', 'success');
                     }
                 })
                 .catch(() => createToast('Server error.', 'error'));
