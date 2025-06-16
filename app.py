@@ -1598,20 +1598,6 @@ def serve_private_image(filename):
         traceback.print_exc()
         return "Error serving image.", 500
         
-@app.route('/admin/activity_log')
-@login_required
-def view_activity_log():
-    try:
-        conn = get_db()
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT id, user_id, activity_type, ip_address, path, details, TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS TZ') as formatted_timestamp FROM activity_log ORDER BY timestamp DESC LIMIT 100")
-            activities = cur.fetchall()
-
-        # Simple HTML rendering for admin page
-        return render_template('activity_log.html', activities=activities)
-    except Exception as e:
-        log_activity('error', details={"function": "view_activity_log", "error": str(e)})
-        return f"Error fetching activity log: {e}", 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5167)), debug=False)
