@@ -141,7 +141,6 @@
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                 <span>Notes</span>
             </a>
-            {# FIX: Updated condition to prevent 'Logs' and 'Food Log' from being active at the same time. #}
             <a href="{{ url_for('logs_page') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if 'log' in request.endpoint and 'food' not in request.endpoint %}active{% endif %}">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
                 <span>Logs</span>
@@ -149,7 +148,7 @@
             <a href="{{ url_for('oracle_chat_page') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if request.endpoint == 'oracle_chat_page' %}active{% endif %}">
                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path></svg>
                 <span>Oracle Chat</span> </a>
-            <a href="{{ url_for('add_food_log') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if 'food_log' in request.endpoint or 'add_food_log' in request.endpoint %}active{% endif %}">
+            <a href="{{ url_for('add_food_log') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if 'food_log' in request.endpoint %}active{% endif %}">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                 <span>Food Log</span>
             </a>
