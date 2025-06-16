@@ -177,32 +177,38 @@
             
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-                    <!-- NEW: Tasks Card -->
-                    <div class="content-card p-6 flex flex-col lg:col-span-1">
+                    <div class="content-card p-6 flex flex-col lg:col-span-1 min-h-[400px]">
                         <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
                             <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             Tasks
                         </h3>
-                        <div id="task-list" class="space-y-3 flex-grow">
+                        <div id="task-list" class="space-y-1 flex-grow">
                             {% if tasks %}
                                 {% for task in tasks %}
-                                <div class="task-item flex items-center" data-task-id="{{ task.id }}">
-                                    <input id="task-{{ task.id }}" type="checkbox" class="form-checkbox h-5 w-5 rounded text-purple-600 focus:ring-purple-500" {% if task.is_completed %}checked{% endif %}>
-                                    <label for="task-{{ task.id }}" class="ml-3 text-sm font-medium text-slate-700">{{ task.title }}</label>
+                                <div class="task-item flex items-center justify-between py-2" data-task-id="{{ task.id }}">
+                                    <div class="flex items-center">
+                                        <input id="task-{{ task.id }}" type="checkbox" class="form-checkbox h-5 w-5 rounded text-purple-600 focus:ring-purple-500" {% if task.is_completed %}checked{% endif %}>
+                                        <label for="task-{{ task.id }}" class="ml-3 text-sm font-medium text-slate-700">{{ task.title }}</label>
+                                    </div>
+                                    {% if task.due_date %}
+                                        <span class="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full whitespace-nowrap">{{ task.due_date.strftime('%d %b, %H:%M') }}</span>
+                                    {% endif %}
                                 </div>
                                 {% endfor %}
                             {% else %}
                                 <p id="no-tasks-msg" class="text-slate-500 italic text-sm">No outstanding tasks. Well done!</p>
                             {% endif %}
                         </div>
-                        <form id="add-task-form" class="mt-4 flex gap-2 pt-4 border-t border-slate-200">
-                            <input type="text" id="new-task-title" placeholder="Add a new task..." class="form-input flex-grow p-2 text-sm rounded-md">
-                            <button type="submit" class="btn-primary text-sm font-semibold px-4 py-2 rounded-md shrink-0">Add</button>
+                        <form id="add-task-form" class="mt-auto flex flex-col gap-2 pt-4 border-t border-slate-200">
+                            <div class="flex gap-2">
+                                <input type="text" id="new-task-title" placeholder="Add a new task..." class="form-input flex-grow p-2 text-sm rounded-md">
+                                <button type="submit" class="btn-primary text-sm font-semibold px-4 py-2 rounded-md shrink-0">Add</button>
+                            </div>
+                            <input type="datetime-local" id="new-task-due-date" title="Set an optional due date" class="form-input p-2 text-sm rounded-md w-full">
                         </form>
                     </div>
 
                     <div class="content-card p-6 flex flex-col lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Scribe's Desk -->
                         <div class="flex flex-col">
                             <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
                                 <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>
@@ -225,7 +231,6 @@
                             </div>
                         </div>
 
-                        <!-- Imperial Treasury -->
                         <div class="flex flex-col">
                             <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
                                 <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m12 0V6a3 3 0 00-3-3H9a3 3 0 00-3 3v3" /></svg>
@@ -320,10 +325,11 @@
                  pageTitleElement.textContent = activeLink.textContent;
             }
 
-            // --- NEW: Task Management Logic ---
+            // --- Task Management Logic ---
             const taskList = document.getElementById('task-list');
             const addTaskForm = document.getElementById('add-task-form');
             const newTaskTitleInput = document.getElementById('new-task-title');
+            const newTaskDueDateInput = document.getElementById('new-task-due-date');
 
             // Update task status
             taskList.addEventListener('change', (e) => {
@@ -343,6 +349,7 @@
                             createToast('Error updating task.', 'error');
                             e.target.checked = !isCompleted; // Revert checkbox on failure
                         } else {
+                            createToast('Task status updated.', 'success');
                             // Optionally hide the task after a delay
                             setTimeout(() => {
                                 if (isCompleted) taskItem.style.display = 'none';
@@ -360,31 +367,51 @@
             addTaskForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const title = newTaskTitleInput.value.trim();
+                const dueDate = newTaskDueDateInput.value;
                 if (!title) return;
+
+                const payload = { title: title };
+                if (dueDate) {
+                    payload.due_date = dueDate;
+                }
 
                 fetch('/api/tasks', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ title: title })
+                    body: JSON.stringify(payload)
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.error) {
                         createToast(data.error, 'error');
                     } else {
-                        // Add new task to UI
                         const noTasksMsg = document.getElementById('no-tasks-msg');
                         if (noTasksMsg) noTasksMsg.remove();
                         
                         const newTaskEl = document.createElement('div');
-                        newTaskEl.className = 'task-item flex items-center';
+                        newTaskEl.className = 'task-item flex items-center justify-between py-2';
                         newTaskEl.dataset.taskId = data.id;
+
+                        let dueDateHtml = '';
+                        if (data.due_date) {
+                             const date = new Date(data.due_date);
+                             const formattedDate = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ', ' + date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                             dueDateHtml = `<span class="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full whitespace-nowrap">${formattedDate}</span>`;
+                        }
+
                         newTaskEl.innerHTML = `
-                            <input id="task-${data.id}" type="checkbox" class="form-checkbox h-5 w-5 rounded text-purple-600 focus:ring-purple-500">
-                            <label for="task-${data.id}" class="ml-3 text-sm font-medium text-slate-700">${data.title}</label>
+                            <div class="flex items-center">
+                                <input id="task-${data.id}" type="checkbox" class="form-checkbox h-5 w-5 rounded text-purple-600 focus:ring-purple-500">
+                                <label for="task-${data.id}" class="ml-3 text-sm font-medium text-slate-700">${data.title}</label>
+                            </div>
+                            ${dueDateHtml}
                         `;
+                        // This will just add to the end. For a fully sorted list, a page reload would be simplest.
+                        // Or a more complex JS sorting function could be implemented. Appending is fine for now.
                         taskList.appendChild(newTaskEl);
                         newTaskTitleInput.value = '';
+                        newTaskDueDateInput.value = '';
+                        createToast('Task added!', 'success');
                     }
                 })
                 .catch(() => createToast('Server error.', 'error'));

@@ -306,8 +306,13 @@ def hello():
             cur.execute("SELECT activity_type, timestamp FROM activity_log WHERE user_id = 1 ORDER BY id DESC LIMIT 5")
             recent_activities = cur.fetchall()
 
-            # 5. Get Incomplete tasks
-            cur.execute("SELECT id, title, is_completed FROM tasks WHERE user_id = 1 AND is_completed = FALSE ORDER BY created_at ASC")
+            # 5. Get Incomplete tasks, ordered by due date
+            cur.execute("""
+                SELECT id, title, is_completed, due_date 
+                FROM tasks 
+                WHERE user_id = 1 AND is_completed = FALSE 
+                ORDER BY due_date ASC NULLS FIRST, created_at ASC
+            """)
             tasks = cur.fetchall()
 
         context = {
@@ -561,26 +566,35 @@ def api_delete_note(note_id):
 def add_task():
     data = request.get_json()
     title = data.get('title', '').strip()
+    due_date_str = data.get('due_date')
 
     if not title:
         return jsonify({'error': 'Title is required'}), 400
+
+    due_date = None
+    if due_date_str:
+        try:
+            due_date = datetime.fromisoformat(due_date_str)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid due date format provided.'}), 400
 
     try:
         conn = get_db()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                "INSERT INTO tasks (title, user_id, created_at, updated_at) VALUES (%s, 1, NOW(), NOW()) RETURNING id, title, is_completed",
-                (title,)
+                "INSERT INTO tasks (title, user_id, due_date, created_at, updated_at) VALUES (%s, 1, %s, NOW(), NOW()) RETURNING id, title, is_completed, due_date",
+                (title, due_date)
             )
             new_task = cur.fetchone()
         conn.commit()
-        log_activity('task_created', details={'title': title})
+        log_activity('task_created', details={'title': title, 'due_date': due_date_str})
         return jsonify(new_task), 201
     except Exception as e:
         conn.rollback()
         log_activity('task_create_error', details={'error': str(e)})
         return jsonify({'error': str(e)}), 500
-
+    
+    
 @app.route('/api/task/<int:task_id>/status', methods=['PUT'])
 @login_required
 def api_update_task_status(task_id):
