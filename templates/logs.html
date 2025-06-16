@@ -1,0 +1,77 @@
+{% extends "index.html" %}
+
+{% block content %}
+<div class="content-card p-4 md:p-6">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-semibold text-slate-800">
+            Log History
+        </h2>
+        <a href="{{ url_for('add_log') }}" class="btn-primary flex items-center text-sm font-semibold px-4 py-2 rounded-md">
+            <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Add New Log
+        </a>
+    </div>
+
+    {% if logs %}
+        <div class="space-y-4">
+        {% for log in logs %}
+            <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <span class="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800">
+                            {{ log.log_type | title }}
+                        </span>
+                        <h3 class="text-lg font-semibold text-slate-800 mt-2">{{ log.title }}</h3>
+                        <p class="text-sm text-slate-500">{{ log.log_time.strftime('%A, %d %B %Y at %H:%M') }}</p>
+                    </div>
+                    {# Add edit/delete buttons here if needed in future #}
+                </div>
+
+                {% if log.structured_data %}
+                <div class="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    {% for key, value in log.structured_data.items() %}
+                        {% if value %}
+                        <div>
+                            <p class="font-medium text-slate-600">{{ key.replace('_', ' ') | title }}</p>
+                            <p class="text-slate-800">{{ value }}</p>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if log.content %}
+                <div class="mt-4 pt-4 border-t border-slate-100">
+                     <p class="text-sm text-slate-600 prose prose-sm max-w-none">{{ log.content }}</p>
+                </div>
+                {% endif %}
+                
+                {% if log.attachments %}
+                <div class="mt-4 pt-4 border-t border-slate-100">
+                    <h4 class="text-sm font-medium text-slate-600 mb-2">Attachments</h4>
+                    <div class="flex flex-wrap gap-4">
+                        {% for filename in log.attachments %}
+                        <a href="{{ url_for('serve_private_image', filename=filename) }}" target="_blank" rel="noopener noreferrer">
+                             <img src="{{ url_for('serve_private_image', filename=filename) }}" alt="Log attachment" class="h-24 w-24 object-cover rounded-md border border-slate-200 hover:opacity-80 transition-opacity">
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center py-12">
+            <svg class="mx-auto h-12 w-12 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <h3 class="mt-2 text-sm font-medium text-slate-900">No log entries yet</h3>
+            <p class="mt-1 text-sm text-slate-500">Get started by creating a new log entry.</p>
+        </div>
+    {% endif %}
+
+</div>
+{% endblock %}

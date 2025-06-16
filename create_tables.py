@@ -89,7 +89,6 @@ try:
     cur.execute(create_food_log_script)
     print("Table 'food_log' created successfully.")
 
-    # New table for the antiques collection
     create_antiques_script = """
     CREATE TABLE IF NOT EXISTS antiques (
         id SERIAL PRIMARY KEY,
@@ -108,7 +107,53 @@ try:
     """
     cur.execute(create_antiques_script)
     print("Table 'antiques' created successfully.")
+    
+    # --- NEW: Table for Tasks ---
+    create_tasks_script = """
+    CREATE TABLE IF NOT EXISTS tasks (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+        due_date TIMESTAMPTZ,
+        user_id INTEGER NOT NULL DEFAULT 1,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    """
+    cur.execute(create_tasks_script)
+    print("Table 'tasks' created successfully.")
 
+    # --- NEW: Table for structured logs ---
+    create_logs_script = """
+    CREATE TABLE IF NOT EXISTS logs (
+        id SERIAL PRIMARY KEY,
+        log_type VARCHAR(50) NOT NULL,
+        title VARCHAR(255),
+        content TEXT,
+        structured_data JSONB,
+        log_time TIMESTAMPTZ NOT NULL,
+        user_id INTEGER NOT NULL DEFAULT 1,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    """
+    cur.execute(create_logs_script)
+    print("Table 'logs' created successfully.")
+
+    # --- NEW: Table for log attachments (e.g., photos for gardening) ---
+    create_log_attachments_script = """
+    CREATE TABLE IF NOT EXISTS log_attachments (
+        id SERIAL PRIMARY KEY,
+        log_id INTEGER NOT NULL,
+        file_name TEXT NOT NULL,
+        file_type VARCHAR(50),
+        user_id INTEGER NOT NULL DEFAULT 1,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        FOREIGN KEY (log_id) REFERENCES logs(id) ON DELETE CASCADE
+    );
+    """
+    cur.execute(create_log_attachments_script)
+    print("Table 'log_attachments' created successfully.")
 
     conn.commit()
     cur.close()

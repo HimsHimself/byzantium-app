@@ -64,17 +64,21 @@
             border-radius: 0.75rem;
         }
         
-        .form-input {
+        .form-input, .form-checkbox, .form-select {
             background-color: #f8fafc;
             border: 1px solid #cbd5e1;
             color: var(--byzantine-slate);
             transition: all 0.2s ease-in-out;
         }
 
-        .form-input:focus {
+        .form-input:focus, .form-checkbox:focus, .form-select:focus {
             border-color: var(--imperial-purple);
             box-shadow: 0 0 0 2px rgba(75, 0, 130, 0.2);
             outline: none;
+        }
+        .form-checkbox:checked {
+            background-color: var(--imperial-purple);
+            border-color: var(--imperial-purple);
         }
 
         .btn-primary {
@@ -89,7 +93,12 @@
             box-shadow: 0 4px 12px 0 rgba(75, 0, 130, 0.3);
             transform: translateY(-2px);
         }
-
+        
+        .task-item label { transition: color 0.2s; }
+        .task-item input:checked + label {
+            text-decoration: line-through;
+            color: #94a3b8;
+        }
     </style>
 </head>
 <body class="flex h-screen antialiased">
@@ -116,6 +125,10 @@
             <a href="{{ url_for('notes_page') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if 'notes_page' in request.endpoint or 'note' in request.endpoint %}active{% endif %}">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                 <span>Notes</span>
+            </a>
+            <a href="{{ url_for('logs_page') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if 'log' in request.endpoint %}active{% endif %}">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
+                <span>Logs</span>
             </a>
             <a href="{{ url_for('oracle_chat_page') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if request.endpoint == 'oracle_chat_page' %}active{% endif %}">
                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path></svg>
@@ -162,107 +175,83 @@
                     <p class="text-purple-200 mt-1">A summary of your personal archives and daily logs.</p>
                 </div>
             
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-                    <div class="content-card p-6 flex flex-col">
+                    <!-- NEW: Tasks Card -->
+                    <div class="content-card p-6 flex flex-col lg:col-span-1">
                         <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
-                            <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m12 0V6a3 3 0 00-3-3H9a3 3 0 00-3 3v3" /></svg>
-                            Imperial Treasury
+                            <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            Tasks
                         </h3>
-                        {% if stats and stats.total_items > 0 %}
-                            <div class="space-y-3">
-                                <div>
-                                    <p class="text-sm text-slate-500">Total Value</p>
-                                    <p class="text-2xl font-bold byzantine-purple-text">£{{ "%.2f"|format(stats.total_value or 0) }}</p>
+                        <div id="task-list" class="space-y-3 flex-grow">
+                            {% if tasks %}
+                                {% for task in tasks %}
+                                <div class="task-item flex items-center" data-task-id="{{ task.id }}">
+                                    <input id="task-{{ task.id }}" type="checkbox" class="form-checkbox h-5 w-5 rounded text-purple-600 focus:ring-purple-500" {% if task.is_completed %}checked{% endif %}>
+                                    <label for="task-{{ task.id }}" class="ml-3 text-sm font-medium text-slate-700">{{ task.title }}</label>
                                 </div>
-                                <div>
-                                    <p class="text-sm text-slate-500">Total Items</p>
-                                    <p class="text-2xl font-bold byzantine-purple-text">{{ stats.total_items }}</p>
+                                {% endfor %}
+                            {% else %}
+                                <p id="no-tasks-msg" class="text-slate-500 italic text-sm">No outstanding tasks. Well done!</p>
+                            {% endif %}
+                        </div>
+                        <form id="add-task-form" class="mt-4 flex gap-2 pt-4 border-t border-slate-200">
+                            <input type="text" id="new-task-title" placeholder="Add a new task..." class="form-input flex-grow p-2 text-sm rounded-md">
+                            <button type="submit" class="btn-primary text-sm font-semibold px-4 py-2 rounded-md shrink-0">Add</button>
+                        </form>
+                    </div>
+
+                    <div class="content-card p-6 flex flex-col lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Scribe's Desk -->
+                        <div class="flex flex-col">
+                            <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
+                                <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>
+                                Scribe's Desk
+                            </h3>
+                            {% if recent_notes %}
+                                <ul class="space-y-2">
+                                    {% for note in recent_notes %}
+                                        <li class="flex justify-between items-baseline">
+                                            <a href="{{ url_for('view_note', note_id=note.id) }}" class="text-slate-800 hover:text-purple-700 truncate" title="{{ note.title }}">{{ note.title }}</a>
+                                            <span class="text-xs text-slate-400 flex-shrink-0 ml-2">{{ note.updated_at.strftime('%d %b') }}</span>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                <p class="text-slate-500 italic text-sm">No notes found.</p>
+                            {% endif %}
+                            <div class="mt-auto pt-4">
+                                <a href="{{ url_for('notes_page') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">Manage all notes &rarr;</a>
+                            </div>
+                        </div>
+
+                        <!-- Imperial Treasury -->
+                        <div class="flex flex-col">
+                            <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
+                                <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m12 0V6a3 3 0 00-3-3H9a3 3 0 00-3 3v3" /></svg>
+                                Imperial Treasury
+                            </h3>
+                            {% if stats and stats.total_items > 0 %}
+                                <div class="space-y-3">
+                                    <div>
+                                        <p class="text-sm text-slate-500">Total Value</p>
+                                        <p class="text-2xl font-bold byzantine-purple-text">£{{ "%.2f"|format(stats.total_value or 0) }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-slate-500">Total Items</p>
+                                        <p class="text-2xl font-bold byzantine-purple-text">{{ stats.total_items }}</p>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="mt-auto pt-4 flex items-center space-x-4">
-                                 <a href="{{ url_for('collection_page') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">View Collection</a>
-                                 <a href="{{ url_for('collection_dashboard') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">View Dashboard</a>
-                            </div>
-                        {% else %}
-                            <p class="text-slate-500 italic text-sm">Your collection is empty. Add your first item to see a summary here.</p>
-                             <div class="mt-auto pt-4">
-                                 <a href="{{ url_for('add_collection_item') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">Add an Item &rarr;</a>
-                            </div>
-                        {% endif %}
-                    </div>
-                    
-                    <div class="content-card p-6 flex flex-col">
-                        <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
-                            <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>
-                            Scribe's Desk
-                        </h3>
-                        {% if recent_notes %}
-                            <ul class="space-y-2">
-                                {% for note in recent_notes %}
-                                    <li class="flex justify-between items-baseline">
-                                        <a href="{{ url_for('view_note', note_id=note.id) }}" class="text-slate-800 hover:text-purple-700 truncate" title="{{ note.title }}">
-                                            {{ note.title }}
-                                        </a>
-                                        <span class="text-xs text-slate-400 flex-shrink-0 ml-2">{{ note.updated_at.strftime('%d %b') }}</span>
-                                    </li>
-                                {% endfor %}
-                            </ul>
-                        {% else %}
-                            <p class="text-slate-500 italic text-sm">No notes found.</p>
-                        {% endif %}
-                        <div class="mt-auto pt-4">
-                            <a href="{{ url_for('notes_page') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">Manage all notes &rarr;</a>
-                        </div>
-                    </div>
-                    
-                    <div class="content-card p-6 flex flex-col">
-                        <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
-                             <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 9.75v.015m0 0v2.235a2.25 2.25 0 01-.632 1.506l-4.14 4.141a2.251 2.251 0 01-1.588.659H6.321a2.25 2.25 0 01-1.588-.66L.64 13.5a2.25 2.25 0 01-.64-1.506v-2.235a2.25 2.25 0 01.632-1.506l4.14-4.141a2.251 2.251 0 011.588-.659h8.232a2.25 2.25 0 011.588.66l4.142 4.14a2.25 2.25 0 01.632 1.506z" /></svg>
-                            Daily Sustenance
-                        </h3>
-                        <div>
-                             <p class="text-sm text-slate-500">Calories Logged Today</p>
-                             <p class="text-2xl font-bold byzantine-purple-text">{{ "%.0f"|format(calories_today) }} <span class="text-lg font-medium text-slate-400">/ 2000 kcal</span></p>
-                        </div>
-                        <div class="mt-auto pt-4">
-                            <a href="{{ url_for('add_food_log') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">Log more food &rarr;</a>
-                        </div>
-                    </div>
-                    
-                    <div class="content-card p-6">
-                        <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
-                            <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg>
-                            Quick Actions
-                        </h3>
-                        <ul class="space-y-3">
-                            <li><a href="{{ url_for('add_collection_item') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">Add New Item to Treasury</a></li>
-                            <li><a href="{{ url_for('oracle_chat_page') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">Consult the Oracle</a></li>
-                            <li><a href="{{ url_for('view_food_log') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">View Food Log History</a></li>
-                        </ul>
-                    </div>
-                    
-                    <div class="content-card p-6 lg:col-span-2">
-                        <h3 class="flex items-center text-lg font-semibold text-slate-700 mb-4">
-                             <svg class="w-6 h-6 mr-3 byzantine-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
-                            Palace Ledger
-                        </h3>
-                         {% if recent_activities %}
-                            <ul class="space-y-2 text-sm">
-                                {% for activity in recent_activities %}
-                                    <li class="flex justify-between items-baseline bg-slate-50 p-2 rounded-md">
-                                        <p class="text-slate-600">
-                                            Action: <span class="font-semibold text-slate-800">{{ activity.activity_type.replace('_', ' ') | title }}</span>
-                                        </p>
-                                        <span class="text-xs text-slate-400 flex-shrink-0 ml-2">{{ activity.timestamp.strftime('%H:%M:%S') }}</span>
-                                    </li>
-                                {% endfor %}
-                            </ul>
-                        {% else %}
-                            <p class="text-slate-500 italic text-sm">No recent activity recorded.</p>
-                        {% endif %}
-                         <div class="mt-auto pt-4">
-                            <a href="{{ url_for('view_activity_log') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">View full log &rarr;</a>
+                                <div class="mt-auto pt-4 flex items-center space-x-4">
+                                     <a href="{{ url_for('collection_page') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">View Collection</a>
+                                     <a href="{{ url_for('collection_dashboard') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">View Dashboard</a>
+                                </div>
+                            {% else %}
+                                <p class="text-slate-500 italic text-sm">Your collection is empty.</p>
+                                 <div class="mt-auto pt-4">
+                                     <a href="{{ url_for('add_collection_item') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">Add an Item &rarr;</a>
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -272,29 +261,21 @@
     </div>
 
     <script>
-        // --- Toast Notification Logic ---
         function createToast(message, category) {
             const toastContainer = document.getElementById('toast-container');
             if (!toastContainer) return;
-
             const toast = document.createElement('div');
             toast.className = 'flex items-center p-4 text-white rounded-lg shadow-lg transition-all duration-300 transform translate-x-full opacity-0';
-            
-            let bgColor = 'bg-gray-700'; // Default
+            let bgColor = 'bg-gray-700';
             if (category === 'success') bgColor = 'bg-green-600';
             if (category === 'error') bgColor = 'bg-red-600';
             if (category === 'info') bgColor = 'bg-blue-600';
-            
             toast.classList.add(bgColor);
             toast.innerHTML = `<span>${message}</span>`;
             toastContainer.appendChild(toast);
-
-            // Animate in
             setTimeout(() => {
                 toast.classList.remove('translate-x-full', 'opacity-0');
             }, 100);
-
-            // Animate out and remove after 5 seconds
             setTimeout(() => {
                 toast.classList.add('opacity-0', '-translate-y-2');
                 toast.addEventListener('transitionend', () => toast.remove());
@@ -302,27 +283,20 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            // --- Process flashed messages into toasts on page load ---
             const flashContainer = document.getElementById('flash-messages');
             if (flashContainer) {
-                // Parse the JSON data from the data attribute
                 const messages = JSON.parse(flashContainer.getAttribute('data-messages') || '[]');
                 if (messages && messages.length > 0) {
                     messages.forEach(msg => {
-                        // The flashed message from Flask is an array: [category, message]
-                        if (Array.isArray(msg) && msg.length === 2) {
-                            const [category, message] = msg;
-                            createToast(message, category);
-                        }
+                        const [category, message] = msg;
+                        createToast(message, category);
                     });
                 }
             }
 
-            // --- Mobile Sidebar Logic ---
             const sidebar = document.querySelector('aside.sidebar');
             const sidebarToggle = document.getElementById('sidebarToggle');
             const sidebarOverlay = document.getElementById('sidebarOverlay');
-
             if (sidebarToggle) {
                 const openSidebar = () => {
                     sidebar.classList.remove('-translate-x-full');
@@ -340,19 +314,81 @@
                 sidebarOverlay.addEventListener('click', closeSidebar);
             }
 
-            // --- Dynamic Page Title Logic ---
             const pageTitleElement = document.getElementById('pageTitle');
             const activeLink = document.querySelector('.sidebar-link.active span');
-            if (pageTitleElement) {
-                 if (activeLink) {
-                    pageTitleElement.textContent = activeLink.textContent;
-                } else {
-                    // Fallback for pages without an active link in the main nav
-                    if (window.location.pathname.includes('/notes') || window.location.pathname.includes('/note/')) {
-                        pageTitleElement.textContent = "Notes";
-                    }
-                }
+            if (pageTitleElement && activeLink) {
+                 pageTitleElement.textContent = activeLink.textContent;
             }
+
+            // --- NEW: Task Management Logic ---
+            const taskList = document.getElementById('task-list');
+            const addTaskForm = document.getElementById('add-task-form');
+            const newTaskTitleInput = document.getElementById('new-task-title');
+
+            // Update task status
+            taskList.addEventListener('change', (e) => {
+                if (e.target.type === 'checkbox') {
+                    const taskItem = e.target.closest('.task-item');
+                    const taskId = taskItem.dataset.taskId;
+                    const isCompleted = e.target.checked;
+                    
+                    fetch(`/api/task/${taskId}/status`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ is_completed: isCompleted })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.success) {
+                            createToast('Error updating task.', 'error');
+                            e.target.checked = !isCompleted; // Revert checkbox on failure
+                        } else {
+                            // Optionally hide the task after a delay
+                            setTimeout(() => {
+                                if (isCompleted) taskItem.style.display = 'none';
+                            }, 500);
+                        }
+                    })
+                    .catch(() => {
+                        createToast('Server error.', 'error');
+                        e.target.checked = !isCompleted;
+                    });
+                }
+            });
+
+            // Add new task
+            addTaskForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const title = newTaskTitleInput.value.trim();
+                if (!title) return;
+
+                fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ title: title })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        createToast(data.error, 'error');
+                    } else {
+                        // Add new task to UI
+                        const noTasksMsg = document.getElementById('no-tasks-msg');
+                        if (noTasksMsg) noTasksMsg.remove();
+                        
+                        const newTaskEl = document.createElement('div');
+                        newTaskEl.className = 'task-item flex items-center';
+                        newTaskEl.dataset.taskId = data.id;
+                        newTaskEl.innerHTML = `
+                            <input id="task-${data.id}" type="checkbox" class="form-checkbox h-5 w-5 rounded text-purple-600 focus:ring-purple-500">
+                            <label for="task-${data.id}" class="ml-3 text-sm font-medium text-slate-700">${data.title}</label>
+                        `;
+                        taskList.appendChild(newTaskEl);
+                        newTaskTitleInput.value = '';
+                    }
+                })
+                .catch(() => createToast('Server error.', 'error'));
+            });
         });
     </script>
 </body>

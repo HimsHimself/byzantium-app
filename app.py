@@ -5,13 +5,15 @@ import requests
 import uuid
 import threading
 import pytz
-import re # <-- SNQL Import
+import re
 from psycopg2.extras import Json, RealDictCursor
 from flask import Flask, request, session, redirect, url_for, render_template, flash, jsonify, g
 from functools import wraps
 from datetime import datetime, timedelta
 import traceback
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg') # Use a non-interactive backend
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
@@ -19,6 +21,7 @@ from google.cloud import storage
 from werkzeug.utils import secure_filename
 import io
 import base64
+from markdown_it import MarkdownIt
 
 app = Flask(__name__)
 
@@ -33,16 +36,19 @@ if not APP_PASSWORD:
 
 ORACLE_API_ENDPOINT_URL = os.environ.get("ORACLE_API_ENDPOINT_URL")
 ORACLE_API_FUNCTION_KEY = os.environ.get("ORACLE_API_FUNCTION_KEY")
-GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME") # Should be 'byzantium_bucket'
+GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")
 GOOGLE_CREDENTIALS_JSON = os.environ.get("GOOGLE_CREDENTIALS_JSON")
 
 if not ORACLE_API_ENDPOINT_URL:
     print("[WARNING] ORACLE_API_ENDPOINT_URL not set. Oracle Chat functionality will be significantly impaired or disabled.")
 if not GCS_BUCKET_NAME or not GOOGLE_CREDENTIALS_JSON:
-    print("[WARNING] GCS environment variables not set. Image uploads for the collection will not work.")
+    print("[WARNING] GCS environment variables not set. Image uploads will not work.")
 
 # --- In-memory store for background job status ---
 oracle_jobs = {}
+
+# --- Markdown Renderer ---
+md = MarkdownIt()
 
 # --- Database Helper ---
 def get_db():
@@ -138,7 +144,6 @@ def process_and_update_note_content(cursor, note_id, raw_content):
             note_info = found_notes.get(title)
             if note_info:
                 target_note_ids.add(note_info['id'])
-                # Use a more specific regex to avoid replacing parts of already processed links
                 processed_content = re.sub(r'\[\[' + re.escape(title) + r'\]\](?!\])', f"snql-ref:{note_info['guid']}", processed_content)
             else:
                 cursor.execute("INSERT INTO notes (title, content, folder_id, user_id, created_at, updated_at) VALUES (%s, %s, %s, 1, NOW(), NOW()) RETURNING id, guid", (title, '', None))
@@ -155,12 +160,8 @@ def process_and_update_note_content(cursor, note_id, raw_content):
     conn.commit()
 
 
-# --- NEW: Helper for building the notes and folders tree ---
+# --- Helper for building the notes and folders tree ---
 def get_full_notes_hierarchy(cursor):
-    """
-    Fetches all notes and folders and organizes them into a hierarchical
-    tree structure for the sidebar.
-    """
     cursor.execute("SELECT id, name, parent_folder_id FROM folders WHERE user_id = 1 ORDER BY name")
     all_folders = cursor.fetchall()
     
@@ -169,18 +170,15 @@ def get_full_notes_hierarchy(cursor):
 
     folder_map = {f['id']: f for f in all_folders}
     
-    # Initialize children and notes lists for each folder
     for folder_id in folder_map:
         folder_map[folder_id]['children'] = []
         folder_map[folder_id]['notes'] = []
 
-    # Slot notes into their respective folders
     for note in all_notes:
         folder_id = note['folder_id']
         if folder_id in folder_map:
             folder_map[folder_id]['notes'].append(note)
 
-    # Build the hierarchy
     tree = []
     for folder in all_folders:
         parent_id = folder['parent_folder_id']
@@ -189,18 +187,15 @@ def get_full_notes_hierarchy(cursor):
         else: # Top-level folder
             tree.append(folder)
             
-    # Get notes that don't belong to any folder
     orphaned_notes = [note for note in all_notes if not note['folder_id']]
     
     return tree, orphaned_notes
 
-# --- GCS Upload Helper (Render-compatible) ---
+# --- GCS Helpers ---
 def upload_to_gcs(file_to_upload, bucket_name):
-    """Uploads a file to a given GCS bucket and returns its filename.""" # <-- Docstring updated
     if not file_to_upload or not file_to_upload.filename:
         return None
     
-    # ... (authentication code remains the same) ...
     try:
         credentials_info = json.loads(os.environ.get('GOOGLE_CREDENTIALS_JSON'))
         storage_client = storage.Client.from_service_account_info(credentials_info)
@@ -218,19 +213,14 @@ def upload_to_gcs(file_to_upload, bucket_name):
     
     try:
         blob.upload_from_file(file_to_upload, content_type=file_to_upload.content_type)
-        # --- CHANGE HERE ---
-        # Instead of returning the public URL, return just the filename.
-        # This is what we will store in our database.
         return unique_filename 
     except Exception as e:
         print(f"Error uploading to GCS: {e}")
         traceback.print_exc()
         return None
 
-# --- GCS Deletion Helper ---
-def delete_from_gcs(blob_name, bucket_name): # <-- Argument changed from image_url to blob_name
-    """Deletes a file from a given GCS bucket based on its blob name.""" # <-- Docstring updated
-    if not blob_name or not GCS_BUCKET_NAME: # <-- Check blob_name
+def delete_from_gcs(blob_name, bucket_name):
+    if not blob_name or not GCS_BUCKET_NAME:
         return
 
     try:
@@ -243,8 +233,6 @@ def delete_from_gcs(blob_name, bucket_name): # <-- Argument changed from image_u
         storage_client = storage.Client.from_service_account_info(credentials_info)
         bucket = storage_client.bucket(bucket_name)
 
-        # --- CHANGE HERE ---
-        # We no longer need to parse the URL. We directly use the blob_name.
         blob = bucket.blob(blob_name)
         if blob.exists():
             blob.delete()
@@ -286,7 +274,7 @@ def logout():
 def before_request_handler():
     if 'logged_in' in session and \
        request.endpoint and \
-       request.endpoint not in ['login', 'static', 'logout', 'api_oracle_chat_start', 'api_oracle_chat_status', 'api_notes_search', 'api_render_markdown']:
+       request.endpoint not in ['login', 'static', 'logout', 'api_oracle_chat_start', 'api_oracle_chat_status', 'api_notes_search', 'api_render_markdown', 'api_update_task_status']:
         log_activity('pageview')
 
 @app.route('/')
@@ -318,15 +306,21 @@ def hello():
             cur.execute("SELECT activity_type, timestamp FROM activity_log WHERE user_id = 1 ORDER BY id DESC LIMIT 5")
             recent_activities = cur.fetchall()
 
+            # 5. Get Incomplete tasks
+            cur.execute("SELECT id, title, is_completed FROM tasks WHERE user_id = 1 AND is_completed = FALSE ORDER BY created_at ASC")
+            tasks = cur.fetchall()
+
         context = {
             "stats": collection_stats,
             "recent_notes": recent_notes,
             "calories_today": calories_today,
-            "recent_activities": recent_activities
+            "recent_activities": recent_activities,
+            "tasks": tasks
         }
         return render_template('index.html', **context)
     except Exception as e:
         log_activity('error', details={"function": "hello_dashboard", "error": str(e)})
+        traceback.print_exc()
         flash("Could not load dashboard data.", "error")
         # Render a failsafe static version if the DB query fails
         return render_template('index.html')
@@ -370,8 +364,8 @@ def move_note(note_id):
             # Update the folder_id for the note
             cur.execute("UPDATE notes SET folder_id = %s, updated_at = NOW() WHERE id = %s AND user_id = 1", (folder_id, note_id))
         conn.commit()
-        log_activity('note_moved', details={'note_id': note_id, 'target_folder_id': folder_id})
         flash('Note moved successfully.', 'success')
+        log_activity('note_moved', details={'note_id': note_id, 'target_folder_id': folder_id})
     except Exception as e:
         conn.rollback()
         flash(f'Error moving note: {e}', 'error')
@@ -390,7 +384,7 @@ def view_note(note_id):
             # Get the full tree for the sidebar
             notes_tree, orphaned_notes = get_full_notes_hierarchy(cur)
             
-            # NEW: Get a flat list of all folders for the "Move" dropdown
+            # Get a flat list of all folders for the "Move" dropdown
             cur.execute("SELECT id, name FROM folders WHERE user_id = 1 ORDER BY name")
             all_folders_for_move = cur.fetchall()
 
@@ -417,7 +411,7 @@ def view_note(note_id):
                                content_for_editing=content_for_editing,
                                backlinks=backlinks,
                                outgoing_links=outgoing_links,
-                               all_folders_for_move=all_folders_for_move) # Pass the folder list to the template
+                               all_folders_for_move=all_folders_for_move)
     except Exception as e:
         traceback.print_exc()
         flash(f"Error viewing note: {e}", "error")
@@ -428,7 +422,6 @@ def view_note(note_id):
 @login_required
 def add_folder():
     folder_name = request.form.get('folder_name','').strip()
-    # The new UI will always have the parent folder ID in the form
     parent_folder_id_str = request.form.get('parent_folder_id')
     parent_folder_id = int(parent_folder_id_str) if parent_folder_id_str and parent_folder_id_str.isdigit() else None
     
@@ -447,7 +440,6 @@ def add_folder():
             log_activity('folder_create_error', details={'folder_name': folder_name, 'error': str(e)})
             flash(f"Error creating folder: {e}", 'error')
     
-    # Redirect back to the main notes page; the tree will be updated
     return redirect(url_for('notes_page'))
 
 @app.route('/folder/<int:folder_id>/delete', methods=['POST'])
@@ -496,7 +488,6 @@ def add_note():
         conn.commit()
         log_activity('note_created', details={'note_title': note_title, 'folder_id': folder_id, 'note_id': new_note_id})
         flash(f"Note '{note_title}' created.", 'success')
-        # Redirect to the new note's page
         return redirect(url_for('view_note', note_id=new_note_id))
     except Exception as e:
         conn.rollback()
@@ -524,19 +515,15 @@ def update_note(note_id):
                 flash("Note not found.", "error")
                 return redirect(url_for('notes_page'))
             
-            # Check for title duplication
             cur.execute("SELECT id FROM notes WHERE title = %s AND user_id = 1 AND id != %s", (note_title, note_id))
             if cur.fetchone():
                 flash(f"Another note with the title '{note_title}' already exists.", 'error')
                 return redirect(redirect_url)
 
-            # Update title
             cur.execute("UPDATE notes SET title = %s, updated_at = NOW() WHERE id = %s", (note_title, note_id))
             
-            # Process content for SNQL links and update
             process_and_update_note_content(cur, note_id, raw_content)
         
-        # The helper function handles its own commit
         log_activity('note_updated', details={'note_id': note_id, 'note_title': note_title})
         flash('Note updated.', 'success')
     except Exception as e:
@@ -551,7 +538,6 @@ def update_note(note_id):
 @app.route('/api/note/<int:note_id>/delete', methods=['POST'])
 @login_required
 def api_delete_note(note_id):
-    """API endpoint to delete a note. Handles request via fetch."""
     conn = get_db()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -569,6 +555,150 @@ def api_delete_note(note_id):
         log_activity('note_delete_error', details={'note_id': note_id, 'error': str(e)})
         return jsonify({"success": False, "error": str(e)}), 500
 
+# --- Task Routes ---
+@app.route('/api/tasks', methods=['POST'])
+@login_required
+def add_task():
+    data = request.get_json()
+    title = data.get('title', '').strip()
+
+    if not title:
+        return jsonify({'error': 'Title is required'}), 400
+
+    try:
+        conn = get_db()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "INSERT INTO tasks (title, user_id, created_at, updated_at) VALUES (%s, 1, NOW(), NOW()) RETURNING id, title, is_completed",
+                (title,)
+            )
+            new_task = cur.fetchone()
+        conn.commit()
+        log_activity('task_created', details={'title': title})
+        return jsonify(new_task), 201
+    except Exception as e:
+        conn.rollback()
+        log_activity('task_create_error', details={'error': str(e)})
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/task/<int:task_id>/status', methods=['PUT'])
+@login_required
+def api_update_task_status(task_id):
+    data = request.get_json()
+    is_completed = data.get('is_completed')
+
+    if is_completed is None:
+        return jsonify({"error": "is_completed field is required"}), 400
+
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute("UPDATE tasks SET is_completed = %s, updated_at = NOW() WHERE id = %s AND user_id = 1", (is_completed, task_id))
+            if cur.rowcount == 0:
+                return jsonify({"error": "Task not found"}), 404
+        conn.commit()
+        log_activity('task_updated', details={'task_id': task_id, 'completed': is_completed})
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        conn.rollback()
+        log_activity('task_update_error', details={'task_id': task_id, 'error': str(e)})
+        return jsonify({"error": str(e)}), 500
+        
+# --- Log Routes ---
+@app.route('/logs')
+@login_required
+def logs_page():
+    try:
+        conn = get_db()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT * FROM logs WHERE user_id = 1 ORDER BY log_time DESC")
+            logs = cur.fetchall()
+            
+            log_ids = [log['id'] for log in logs]
+            attachments = {}
+            if log_ids:
+                cur.execute("SELECT log_id, file_name FROM log_attachments WHERE log_id = ANY(%s)", (log_ids,))
+                for row in cur.fetchall():
+                    if row['log_id'] not in attachments:
+                        attachments[row['log_id']] = []
+                    attachments[row['log_id']].append(row['file_name'])
+            
+            for log in logs:
+                log['attachments'] = attachments.get(log['id'], [])
+
+        return render_template('logs.html', logs=logs)
+    except Exception as e:
+        log_activity('error', details={'function': 'logs_page', 'error': str(e)})
+        flash("Error fetching logs.", "error")
+        traceback.print_exc()
+        return redirect(url_for('hello'))
+
+@app.route('/logs/add', methods=['GET', 'POST'])
+@login_required
+def add_log():
+    if request.method == 'POST':
+        try:
+            log_type = request.form.get('log_type')
+            title = request.form.get('title')
+            content = request.form.get('content')
+            log_time_str = request.form.get('log_time')
+            log_time = datetime.fromisoformat(log_time_str) if log_time_str else datetime.now()
+
+            structured_data = {}
+            if log_type == 'workout':
+                structured_data['duration_minutes'] = request.form.get('duration_minutes')
+                structured_data['type'] = request.form.get('workout_type')
+            elif log_type == 'reading':
+                structured_data['book_title'] = request.form.get('book_title')
+                structured_data['author'] = request.form.get('author')
+                structured_data['pages_read'] = request.form.get('pages_read')
+            elif log_type == 'gardening':
+                structured_data['plants_tended'] = request.form.get('plants_tended')
+
+            conn = get_db()
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    INSERT INTO logs (log_type, title, content, structured_data, log_time, user_id, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, 1, NOW(), NOW()) RETURNING id
+                    """,
+                    (log_type, title, content, Json(structured_data) if structured_data else None, log_time)
+                )
+                log_id = cur.fetchone()['id']
+
+                # Handle file upload for gardening
+                if log_type == 'gardening' and 'photo' in request.files:
+                    photo = request.files['photo']
+                    if photo.filename != '':
+                        file_name = upload_to_gcs(photo, GCS_BUCKET_NAME)
+                        if file_name:
+                            cur.execute(
+                                """
+                                INSERT INTO log_attachments (log_id, file_name, file_type, user_id, created_at)
+                                VALUES (%s, %s, %s, 1, NOW())
+                                """,
+                                (log_id, file_name, photo.content_type)
+                            )
+                        else:
+                            flash("Photo upload failed.", "error")
+
+            conn.commit()
+            flash(f"{log_type.capitalize()} log added successfully!", "success")
+            log_activity(f'{log_type}_log_added', details={'title': title, 'log_id': log_id})
+            return redirect(url_for('logs_page'))
+
+        except Exception as e:
+            conn.rollback()
+            log_activity('log_add_error', details={'error': str(e)})
+            flash(f"Error adding log: {e}", "error")
+            traceback.print_exc()
+
+    london_tz = pytz.timezone("Europe/London")
+    now_in_london = datetime.now(london_tz)
+    default_datetime = now_in_london.strftime('%Y-%m-%dT%H:%M')
+    return render_template('add_log.html', default_datetime=default_datetime)
+
+
 # --- API Routes ---
 @app.route('/api/notes/search')
 @login_required
@@ -583,6 +713,14 @@ def api_notes_search():
         results = cur.fetchall()
         
     return jsonify([row['title'] for row in results])
+
+@app.route('/api/render_markdown', methods=['POST'])
+@login_required
+def api_render_markdown():
+    data = request.get_json()
+    markdown_text = data.get('text', '')
+    html = md.render(markdown_text)
+    return jsonify({'html': html})
 
 # --- Food Log Routes ---
 @app.route('/food_log/add', methods=['GET', 'POST'])
@@ -641,6 +779,8 @@ def add_food_log():
     
     return render_template('add_food_log.html', default_datetime=default_datetime)
 
+
+
 @app.route('/food_log/view')
 @login_required
 def view_food_log():
@@ -656,7 +796,6 @@ def view_food_log():
             cur.execute("SELECT * FROM food_log WHERE user_id = 1 AND log_time >= %s ORDER BY log_time DESC", (thirty_days_ago,))
             logs = cur.fetchall()
 
-            # Add a date-only attribute to each log for easier grouping in the template.
             for log in logs:
                 if log.get('log_time'):
                     log['log_date'] = log['log_time'].date()
@@ -668,10 +807,10 @@ def view_food_log():
             """
             cur.execute(sql_today_calories, (today_london,))
             result = cur.fetchone()
-            # FIX: Changed 'none' to 'None'
             if result and result['total'] is not None:
                 today_total_calories = int(result['total'])
         
+        chart_url = None
         if logs:
             df = pd.DataFrame(logs)
             df['date'] = pd.to_datetime(df['log_time']).dt.date
@@ -704,20 +843,18 @@ def view_food_log():
             ax.legend(frameon=False, loc='upper left', bbox_to_anchor=(0, 1.1))
             plt.tight_layout()
             
-            plot_path = os.path.join('static', 'calories_chart.png')
-            if not os.path.exists('static'):
-                os.makedirs('static')
-            plt.savefig(plot_path)
+            img = io.BytesIO()
+            plt.savefig(img, format='png')
+            img.seek(0)
+            chart_url = base64.b64encode(img.getvalue()).decode()
             plt.close(fig)
-            chart_url = url_for('static', filename='calories_chart.png')
-        else:
-            chart_url = None
 
         return render_template('view_food_log.html', logs=logs, chart_url=chart_url, today_total=today_total_calories)
 
     except Exception as e:
         log_activity('error', details={"function": "view_food_log", "error": str(e)})
         flash("Error fetching food log history.", "error")
+        traceback.print_exc()
         return redirect(url_for('add_food_log'))
     
 @app.route('/food_log/edit/<int:log_id>', methods=['GET', 'POST'])
@@ -875,59 +1012,45 @@ def collection_page():
     try:
         conn = get_db()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Get filter values from query parameters
             query_search = request.args.get('q', '').strip()
             item_type_filter = request.args.get('item_type', '').strip()
             period_filter = request.args.get('period', '').strip()
             sellable_filter = request.args.get('is_sellable', '').strip()
 
-            # Base query parts
             base_query = "SELECT * FROM antiques WHERE user_id = 1"
             where_clauses = []
             params = []
             
-            # Wildcard search across multiple text fields
             if query_search:
                 where_clauses.append("(name ILIKE %s OR description ILIKE %s OR item_type ILIKE %s OR period ILIKE %s OR provenance ILIKE %s)")
                 search_term = f"%{query_search}%"
                 params.extend([search_term] * 5)
 
-            # Filter by item type
             if item_type_filter:
                 where_clauses.append("item_type = %s")
                 params.append(item_type_filter)
             
-            # Filter by period
             if period_filter:
                 where_clauses.append("period = %s")
                 params.append(period_filter)
 
-            # Filter by sellable status
             if sellable_filter == 'yes':
                 where_clauses.append("is_sellable = TRUE")
             elif sellable_filter == 'no':
                 where_clauses.append("is_sellable = FALSE")
 
-            # Construct the final query
-            if where_clauses:
-                sql_query = f"{base_query} AND {' AND '.join(where_clauses)}"
-            else:
-                sql_query = base_query
-            
+            sql_query = f"{base_query} AND {' AND '.join(where_clauses)}" if where_clauses else base_query
             sql_query += " ORDER BY created_at DESC"
 
-            # Execute the query to get items
             cur.execute(sql_query, tuple(params))
             items = cur.fetchall()
 
-            # Get distinct values for filter dropdowns
             cur.execute("SELECT DISTINCT item_type FROM antiques WHERE user_id = 1 AND item_type IS NOT NULL AND item_type != '' ORDER BY item_type")
             item_types = [row['item_type'] for row in cur.fetchall()]
             
             cur.execute("SELECT DISTINCT period FROM antiques WHERE user_id = 1 AND period IS NOT NULL AND period != '' ORDER BY period")
             periods = [row['period'] for row in cur.fetchall()]
 
-        # Store current filters to pass back to the template
         current_filters = {
             'q': query_search,
             'item_type': item_type_filter,
@@ -945,6 +1068,7 @@ def collection_page():
         traceback.print_exc()
         flash("Error fetching collection.", "error")
         return redirect(url_for('hello'))
+
 
 
 @app.route('/collection/dashboard')
@@ -1445,14 +1569,10 @@ def view_activity_log():
         log_activity('error', details={"function": "view_activity_log", "error": str(e)})
         return f"Error fetching activity log: {e}", 500
     
-# --- Add this new route somewhere in your app.py file ---
-
+# --- Other Routes ---
 @app.route('/images/<path:filename>')
 @login_required
 def serve_private_image(filename):
-    """
-    Generates a temporary signed URL for a private GCS object and redirects to it.
-    """
     if not GCS_BUCKET_NAME or not GOOGLE_CREDENTIALS_JSON:
         return "Image serving is not configured.", 500
 
@@ -1465,20 +1585,33 @@ def serve_private_image(filename):
         if not blob.exists():
             return "Image not found.", 404
             
-        # Generate a signed URL that is valid for 15 minutes.
         signed_url = blob.generate_signed_url(
             version="v4",
             expiration=timedelta(minutes=15),
             method="GET",
         )
         
-        # Redirect the user's browser to the temporary URL.
         return redirect(signed_url)
         
     except Exception as e:
         log_activity('error', details={"function": "serve_private_image", "error": str(e)})
         traceback.print_exc()
         return "Error serving image.", 500
+        
+@app.route('/admin/activity_log')
+@login_required
+def view_activity_log():
+    try:
+        conn = get_db()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT id, user_id, activity_type, ip_address, path, details, TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS TZ') as formatted_timestamp FROM activity_log ORDER BY timestamp DESC LIMIT 100")
+            activities = cur.fetchall()
+
+        # Simple HTML rendering for admin page
+        return render_template('activity_log.html', activities=activities)
+    except Exception as e:
+        log_activity('error', details={"function": "view_activity_log", "error": str(e)})
+        return f"Error fetching activity log: {e}", 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5167)), debug=False)

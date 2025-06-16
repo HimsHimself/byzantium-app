@@ -1,0 +1,121 @@
+{% extends "index.html" %}
+
+{% block content %}
+<div class="content-card max-w-2xl mx-auto p-6 md:p-8">
+    <h2 class="text-2xl font-semibold text-slate-800 mb-6">Add a New Log Entry</h2>
+
+    <form action="{{ url_for('add_log') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
+        
+        <div>
+            <label for="log_type" class="block text-sm font-medium text-slate-700 mb-1">Log Type</label>
+            <select name="log_type" id="log_type" required class="form-select w-full p-2 rounded-md">
+                <option value="" disabled selected>-- Select a type --</option>
+                <option value="workout">Workout</option>
+                <option value="reading">Reading</option>
+                <option value="gardening">Gardening</option>
+                <option value="general">General</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="log_time" class="block text-sm font-medium text-slate-700 mb-1">Date and Time of Log</label>
+            <input type="datetime-local" id="log_time" name="log_time" value="{{ default_datetime }}" required class="form-input w-full p-2 rounded-md">
+        </div>
+
+        <div>
+            <label for="title" class="block text-sm font-medium text-slate-700 mb-1">Title</label>
+            <input type="text" id="title" name="title" required class="form-input w-full p-2 rounded-md" placeholder="e.g., Morning Run, Chapter 5, Repotting Basil">
+        </div>
+
+        <!-- Dynamic Structured Fields -->
+        <div id="structured-fields" class="space-y-4 p-4 bg-slate-50 rounded-lg border border-slate-200 hidden">
+            <!-- Workout Fields -->
+            <div id="workout-fields" class="log-type-fields hidden space-y-4">
+                <div>
+                    <label for="workout_type" class="block text-sm font-medium text-slate-700 mb-1">Workout Type</label>
+                    <input type="text" name="workout_type" id="workout_type" class="form-input w-full p-2 rounded-md" placeholder="e.g., Cardio, Weightlifting">
+                </div>
+                <div>
+                    <label for="duration_minutes" class="block text-sm font-medium text-slate-700 mb-1">Duration (minutes)</label>
+                    <input type="number" name="duration_minutes" id="duration_minutes" class="form-input w-full p-2 rounded-md" placeholder="e.g., 30">
+                </div>
+            </div>
+            <!-- Reading Fields -->
+            <div id="reading-fields" class="log-type-fields hidden space-y-4">
+                <div>
+                    <label for="book_title" class="block text-sm font-medium text-slate-700 mb-1">Book Title</label>
+                    <input type="text" name="book_title" id="book_title" class="form-input w-full p-2 rounded-md">
+                </div>
+                <div>
+                    <label for="author" class="block text-sm font-medium text-slate-700 mb-1">Author</label>
+                    <input type="text" name="author" id="author" class="form-input w-full p-2 rounded-md">
+                </div>
+                 <div>
+                    <label for="pages_read" class="block text-sm font-medium text-slate-700 mb-1">Pages Read</label>
+                    <input type="number" name="pages_read" id="pages_read" class="form-input w-full p-2 rounded-md">
+                </div>
+            </div>
+            <!-- Gardening Fields -->
+            <div id="gardening-fields" class="log-type-fields hidden space-y-4">
+                 <div>
+                    <label for="plants_tended" class="block text-sm font-medium text-slate-700 mb-1">Plants Tended</label>
+                    <input type="text" name="plants_tended" id="plants_tended" class="form-input w-full p-2 rounded-md" placeholder="e.g., Tomatoes, Roses">
+                </div>
+                <div>
+                    <label for="photo" class="block text-sm font-medium text-slate-700 mb-1">Add Photo</label>
+                    <input type="file" name="photo" id="photo" class="form-input w-full p-2 rounded-md file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100">
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <label for="content" class="block text-sm font-medium text-slate-700 mb-1">Notes / Content</label>
+            <textarea id="content" name="content" rows="6" class="form-input w-full p-2 rounded-md" placeholder="Add any additional details here..."></textarea>
+        </div>
+
+        <div class="flex justify-end gap-4 pt-4 border-t border-slate-200">
+            <a href="{{ url_for('logs_page') }}" class="text-center bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded-md">Cancel</a>
+            <button type="submit" class="btn-primary font-semibold py-2 px-6 rounded-md">Save Log</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const logTypeSelect = document.getElementById('log_type');
+    const structuredFieldsContainer = document.getElementById('structured-fields');
+    const allTypeFields = document.querySelectorAll('.log-type-fields');
+
+    logTypeSelect.addEventListener('change', (e) => {
+        const selectedType = e.target.value;
+        
+        let hasVisibleFields = false;
+        allTypeFields.forEach(fieldSet => {
+            if (fieldSet.id === `${selectedType}-fields`) {
+                fieldSet.classList.remove('hidden');
+                // Make inputs in visible fieldset required
+                fieldSet.querySelectorAll('input, select, textarea').forEach(input => {
+                    // This is a simple approach. A robust solution might need more complex logic.
+                    if (input.name !== 'photo') input.required = true; 
+                });
+                hasVisibleFields = true;
+            } else {
+                fieldSet.classList.add('hidden');
+                // Remove required attribute from hidden inputs
+                fieldSet.querySelectorAll('input, select, textarea').forEach(input => {
+                    input.required = false;
+                });
+            }
+        });
+
+        if (hasVisibleFields) {
+            structuredFieldsContainer.classList.remove('hidden');
+        } else {
+            structuredFieldsContainer.classList.add('hidden');
+        }
+    });
+});
+</script>
+{% endblock %}
