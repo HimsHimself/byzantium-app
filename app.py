@@ -419,24 +419,23 @@ def view_note(note_id):
                 flash('Note not found.', 'error')
                 return redirect(url_for('notes_page'))
 
-            # --- REVISED, SIMPLIFIED DATA HANDLING LOGIC ---
-            content_data = current_note.get('content')
-            
-            # Case 1: The content is a JSON string from the DB, load it into a dictionary.
-            if isinstance(content_data, str):
-                try:
-                    current_note['content'] = json.loads(content_data)
-                except json.JSONDecodeError:
-                    # If it's a string but not valid JSON, it's likely old Markdown.
-                    # This preserves the original robust logic's fallback.
-                    current_note['content'] = convert_markdown_to_editorjs_json(content_data)
-            
-            # Case 2: The content from the DB is None (e.g., a new or empty note).
-            elif content_data is None:
-                current_note['content'] = {"time": int(datetime.now().timestamp() * 1000), "blocks": [], "version": "2.28.0"}
+            # --- FINALIZED DATA HANDLING LOGIC ---
+            note_content_for_editor = current_note.get('content')
 
-            # Case 3: The content is already a dictionary (correctly loaded by psycopg2).
-            # No action is needed in this case.
+            # If content from the DB is a string, parse it into a dictionary
+            if isinstance(note_content_for_editor, str):
+                try:
+                    note_content_for_editor = json.loads(note_content_for_editor)
+                except json.JSONDecodeError:
+                    # If parsing fails, treat it as old markdown text
+                    note_content_for_editor = convert_markdown_to_editorjs_json(note_content_for_editor)
+            
+            # If content is missing or empty, create a valid default structure
+            if not note_content_for_editor:
+                note_content_for_editor = {"time": int(datetime.now().timestamp() * 1000), "blocks": [], "version": "2.28.0"}
+            
+            # We will pass this clean variable to the template instead of the original one.
+            current_note['content_for_editor'] = note_content_for_editor
 
             cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.source_note_id WHERE nr.target_note_id = %s ORDER BY n.title;", (note_id,))
             backlinks = cur.fetchall()

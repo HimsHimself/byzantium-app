@@ -124,7 +124,7 @@
                 </div>
                 
                 <div id="editorjs"
-                    data-note-content='{{ current_note.content | tojson | safe if current_note and current_note.content else "{}" }}'
+                    data-note-content='{{ current_note.content_for_editor | tojson | safe }}'
                     class="flex-grow p-4 overflow-y-auto">
                 </div>
 
