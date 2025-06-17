@@ -419,33 +419,26 @@ def view_note(note_id):
                 flash('Note not found.', 'error')
                 return redirect(url_for('notes_page'))
 
-            # --- DEBUGGING AND DATA PREPARATION ---
-            print("--- Debugging Note Content ---")
+            # --- DATA PREPARATION ---
             raw_content_from_db = current_note.get('content')
-            print(f"1. Type of raw content from DB: {type(raw_content_from_db)}")
-            print(f"2. Raw content value: {raw_content_from_db}")
-
             content_for_editor = raw_content_from_db
             
+            # Handle legacy string-based content or corrupted data
             if isinstance(content_for_editor, str):
                 try:
                     content_for_editor = json.loads(content_for_editor)
-                    print("3. Successfully parsed string content into a dictionary.")
                 except json.JSONDecodeError:
-                    print("3. Could not parse string as JSON. Treating as Markdown.")
                     content_for_editor = convert_markdown_to_editorjs_json(content_for_editor)
 
+            # Ensure content is a valid dict, creating a default if it's empty
             if not content_for_editor:
-                print("3. Content was empty or None. Creating default structure.")
                 content_for_editor = {"time": int(datetime.now().timestamp() * 1000), "blocks": [], "version": "2.28.0"}
             
-            print(f"4. Final type being sent to template: {type(content_for_editor)}")
-            print("--- End Debugging ---")
-            
+            # *** FINAL FIX PART 1 ***
             # Manually dump the dictionary to a JSON string before passing to the template.
-            # This ensures it's in the exact format we need.
+            # This gives us more control over the final output and avoids template filter issues.
             current_note['content_for_editor'] = json.dumps(content_for_editor)
-            # --- END DEBUGGING AND DATA PREPARATION ---
+            # *** END OF FIX ***
 
             cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.source_note_id WHERE nr.target_note_id = %s ORDER BY n.title;", (note_id,))
             backlinks = cur.fetchall()

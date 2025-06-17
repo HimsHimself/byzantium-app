@@ -51,15 +51,6 @@
 
 
 {% block content %}
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/header@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/list@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/inline-code@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/link@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/quote@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/table@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/paragraph@latest"></script>
-
 <style>
     .notes-container { display: flex; gap: 1.5rem; height: calc(100vh - 120px); }
     .notes-explorer {
@@ -124,8 +115,8 @@
                 </div>
                 
                 <div id="editorjs"
-                    data-note-content='{{ current_note.content_for_editor | safe }}'
-                    class="flex-grow p-4 overflow-y-auto">
+                     data-note-content='{{ current_note.content_for_editor | safe }}'
+                     class="flex-grow p-4 overflow-y-auto">
                 </div>
 
                 <div class="p-4 border-t border-slate-200 bg-slate-50/50 grid grid-cols-1 sm:grid-cols-2 gap-6 rounded-b-lg">
@@ -153,6 +144,15 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/header@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/list@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/inline-code@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/link@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/quote@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/table@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/paragraph@latest"></script>
+
 <script>
     function toggleAddForm(formId, event) {
         event.preventDefault();
@@ -172,7 +172,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (editorElement && editorPane) {
         try {
-            // This line now correctly parses the data from the template
             const noteContentData = JSON.parse(editorElement.dataset.noteContent);
             const editor = new EditorJS({
                 holder: 'editorjs',
