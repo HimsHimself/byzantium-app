@@ -48,7 +48,7 @@ try:
         id SERIAL PRIMARY KEY,
         guid UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
         title VARCHAR(255) NOT NULL,
-        content TEXT,
+        content JSONB,
         folder_id INTEGER,
         user_id INTEGER NOT NULL DEFAULT 1, -- Assuming user_id 1
         created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -57,7 +57,7 @@ try:
     );
     """
     cur.execute(create_notes_script)
-    print("Table 'notes' created successfully.")
+    print("Table 'notes' created successfully (content field is now JSONB).")
 
     # SNQL: Table to store the relationship between notes (backlinks)
     create_note_references_script = """

@@ -130,34 +130,63 @@ def convert_db_content_to_raw_for_editing(cursor, db_content):
     raw_content = SNQL_BROKEN_REF_PATTERN.sub(lambda m: f"[[{m.group(1)}]]", raw_content)
     return raw_content
 
-def process_and_update_note_content(cursor, note_id, raw_content):
+def process_and_update_note_content(cursor, note_id, content_json):
     conn = cursor.connection
-    referenced_titles = {s.strip() for s in REFERENCE_PATTERN.findall(raw_content) if s.strip()}
+    all_referenced_titles = set()
+    REFERENCE_PATTERN = re.compile(r'\[\[(.*?)\]\]')
+
+    # 1. Find all [[links]] in the content JSON
+    if 'blocks' in content_json and isinstance(content_json['blocks'], list):
+        for block in content_json['blocks']:
+            if block and 'data' in block and 'text' in block['data'] and isinstance(block['data']['text'], str):
+                found_titles = REFERENCE_PATTERN.findall(block['data']['text'])
+                for title in found_titles:
+                    all_referenced_titles.add(title.strip())
+
     target_note_ids = set()
-    processed_content = raw_content
+    found_notes_map = {}
+    if all_referenced_titles:
+        cursor.execute("SELECT id, title FROM notes WHERE title = ANY(%s)", (list(all_referenced_titles),))
+        found_notes = cursor.fetchall()
+        for note in found_notes:
+            found_notes_map[note['title']] = {'id': note['id']}
+            target_note_ids.add(note['id'])
 
-    if referenced_titles:
-        cursor.execute("SELECT id, guid, title FROM notes WHERE title = ANY(%s)", (list(referenced_titles),))
-        found_notes = {note['title']: {'id': note['id'], 'guid': str(note['guid'])} for note in cursor.fetchall()}
+    # 2. Create notes for titles that don't exist yet
+    missing_titles = all_referenced_titles - set(found_notes_map.keys())
+    for title in missing_titles:
+        # Create a default empty content structure for the new note
+        empty_content = {"time": int(datetime.now().timestamp() * 1000), "blocks": [], "version": "2.28.0"}
+        cursor.execute("INSERT INTO notes (title, content, folder_id, user_id, created_at, updated_at) VALUES (%s, %s, %s, 1, NOW(), NOW()) RETURNING id", (title, Json(empty_content), None))
+        new_note_id = cursor.fetchone()['id']
+        target_note_ids.add(new_note_id)
+        found_notes_map[title] = {'id': new_note_id}
+        log_activity('note_created_from_link', details={'note_title': title, 'new_note_id': new_note_id, 'source_note_id': note_id})
 
-        for title in referenced_titles:
-            note_info = found_notes.get(title)
-            if note_info:
-                target_note_ids.add(note_info['id'])
-                processed_content = re.sub(r'\[\[' + re.escape(title) + r'\]\](?!\])', f"snql-ref:{note_info['guid']}", processed_content)
-            else:
-                cursor.execute("INSERT INTO notes (title, content, folder_id, user_id, created_at, updated_at) VALUES (%s, %s, %s, 1, NOW(), NOW()) RETURNING id, guid", (title, '', None))
-                new_note_id, new_note_guid = cursor.fetchone()
-                target_note_ids.add(new_note_id)
-                processed_content = re.sub(r'\[\[' + re.escape(title) + r'\]\](?!\])', f"snql-ref:{new_note_guid}", processed_content)
-                log_activity('note_created_from_link', details={'note_title': title, 'new_note_id': new_note_id, 'source_note_id': note_id})
+    # 3. Update the content JSON with proper HTML links
+    if 'blocks' in content_json and isinstance(content_json['blocks'], list):
+        for block in content_json['blocks']:
+             if block and 'data' in block and 'text' in block['data'] and isinstance(block['data']['text'], str):
+                def replace_link(match):
+                    title = match.group(1).strip()
+                    if title in found_notes_map:
+                        note_info = found_notes_map[title]
+                        # Create an HTML link that Editor.js can render
+                        return f'<a href="{url_for("view_note", note_id=note_info["id"])}">{title}</a>'
+                    return match.group(0) 
+                
+                block['data']['text'] = REFERENCE_PATTERN.sub(replace_link, block['data']['text'])
 
-    cursor.execute("UPDATE notes SET content = %s, updated_at = NOW() WHERE id = %s", (processed_content, note_id))
+    # 4. Save the processed JSON to the database
+    cursor.execute("UPDATE notes SET content = %s, updated_at = NOW() WHERE id = %s", (Json(content_json), note_id))
+
+    # 5. Update the note_references table for backlinks
     cursor.execute("DELETE FROM note_references WHERE source_note_id = %s", (note_id,))
     if target_note_ids:
         args_list = [(note_id, target_id) for target_id in target_note_ids]
         cursor.executemany("INSERT INTO note_references (source_note_id, target_note_id) VALUES (%s, %s) ON CONFLICT DO NOTHING", args_list)
-    conn.commit()
+    
+    # The final commit will be handled by the calling function `update_note`
 
 
 # --- Helper for building the notes and folders tree ---
@@ -242,6 +271,41 @@ def delete_from_gcs(blob_name, bucket_name):
     except Exception as e:
         print(f"Error deleting from GCS: {e}")
         log_activity('gcs_delete_error', details={'blob_name': blob_name, 'error': str(e)})
+
+
+# --- Markdown helper ---
+def convert_markdown_to_editorjs_json(markdown_text):
+    """
+    A simple converter from Markdown text to Editor.js JSON structure.
+    This helps migrate old notes to the new format.
+    """
+    if not markdown_text or not isinstance(markdown_text, str):
+        return {"time": int(datetime.now().timestamp() * 1000), "blocks": [], "version": "2.28.0"}
+
+    blocks = []
+    # A simple regex to split by markdown headers
+    # This will treat anything under a header as a single paragraph block
+    parts = re.split(r'(^#+\s.*)', markdown_text, flags=re.MULTILINE)
+    
+    content_parts = [p.strip() for p in parts if p.strip()]
+
+    for i, part in enumerate(content_parts):
+        if part.startswith('#'):
+            level = len(part.split(' ')[0])
+            text = ' '.join(part.split(' ')[1:])
+            blocks.append({"type": "header", "data": {"text": text, "level": level}})
+            # Check if there is content following this header
+            if i + 1 < len(content_parts) and not content_parts[i+1].startswith('#'):
+                blocks.append({"type": "paragraph", "data": {"text": content_parts[i+1].replace('\n', ' ')}})
+
+    if not blocks and markdown_text:
+        blocks.append({"type": "paragraph", "data": {"text": markdown_text.replace('\n', ' ')}})
+
+    return {
+        "time": int(datetime.now().timestamp() * 1000),
+        "blocks": blocks,
+        "version": "2.28.0"
+    }
 
 # --- Main Routes ---
 @app.route('/login', methods=['GET', 'POST'])
@@ -382,28 +446,27 @@ def move_note(note_id):
 @app.route('/note/<int:note_id>', methods=['GET'])
 @login_required
 def view_note(note_id):
-    """Renders the notes page with a specific note selected for viewing/editing."""
     try:
         conn = get_db()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Get the full tree for the sidebar
             notes_tree, orphaned_notes = get_full_notes_hierarchy(cur)
             
-            # Get a flat list of all folders for the "Move" dropdown
             cur.execute("SELECT id, name FROM folders WHERE user_id = 1 ORDER BY name")
             all_folders_for_move = cur.fetchall()
 
-            # Get the specific note being viewed
             cur.execute("SELECT * FROM notes WHERE id = %s AND user_id = 1", (note_id,))
             current_note = cur.fetchone()
             if not current_note:
                 flash('Note not found.', 'error')
                 return redirect(url_for('notes_page'))
 
-            # Process content for editing
-            content_for_editing = convert_db_content_to_raw_for_editing(cur, current_note['content'])
+            # If content is old plain text, convert it to new Editor.js JSON format
+            if isinstance(current_note['content'], str):
+                current_note['content'] = convert_markdown_to_editorjs_json(current_note['content'])
+            
+            # The 'content_for_editing' is no longer needed as a separate variable
+            # We will pass the whole 'current_note' object which now has JSON content
 
-            # Get backlinks and outgoing links
             cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.source_note_id WHERE nr.target_note_id = %s ORDER BY n.title;", (note_id,))
             backlinks = cur.fetchall()
             cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.target_note_id WHERE nr.source_note_id = %s ORDER BY n.title;", (note_id,))
@@ -413,7 +476,6 @@ def view_note(note_id):
                                notes_tree=notes_tree,
                                orphaned_notes=orphaned_notes,
                                current_note=current_note,
-                               content_for_editing=content_for_editing,
                                backlinks=backlinks,
                                outgoing_links=outgoing_links,
                                all_folders_for_move=all_folders_for_move)
@@ -422,6 +484,7 @@ def view_note(note_id):
         flash(f"Error viewing note: {e}", "error")
         log_activity('view_note_error', details={'note_id': note_id, 'error': str(e)})
         return redirect(url_for('notes_page'))
+    
 
 @app.route('/add_folder', methods=['POST'])
 @login_required
@@ -488,7 +551,17 @@ def add_note():
                 flash(f"A note with the title '{note_title}' already exists.", 'error')
                 return redirect(url_for('notes_page'))
             
-            cur.execute("INSERT INTO notes (title, content, folder_id, user_id, created_at, updated_at) VALUES (%s, %s, %s, 1, NOW(), NOW()) RETURNING id", (note_title, f'# {note_title}\n\n', folder_id))
+            # Create a default content structure for the new note
+            initial_content = {
+                "time": int(datetime.now().timestamp() * 1000),
+                "blocks": [
+                    {"type": "header", "data": {"text": note_title, "level": 1}},
+                    {"type": "paragraph", "data": {"text": "Start writing your new note here..."}}
+                ],
+                "version": "2.28.0"
+            }
+            
+            cur.execute("INSERT INTO notes (title, content, folder_id, user_id, created_at, updated_at) VALUES (%s, %s, %s, 1, NOW(), NOW()) RETURNING id", (note_title, Json(initial_content), folder_id))
             new_note_id = cur.fetchone()[0]
         conn.commit()
         log_activity('note_created', details={'note_title': note_title, 'folder_id': folder_id, 'note_id': new_note_id})
@@ -504,12 +577,18 @@ def add_note():
 @app.route('/note/<int:note_id>/update', methods=['POST'])
 @login_required
 def update_note(note_id):
-    raw_content = request.form.get('note_content', '')
+    note_content_json_str = request.form.get('note_content', '{}')
     note_title = request.form.get('note_title', '').strip()
     redirect_url = url_for('view_note', note_id=note_id)
     
     if not note_title:
         flash("Note title cannot be empty.", "error")
+        return redirect(redirect_url)
+
+    try:
+        note_content_json = json.loads(note_content_json_str)
+    except json.JSONDecodeError:
+        flash("Invalid note data received from editor.", "error")
         return redirect(redirect_url)
 
     conn = get_db()
@@ -527,8 +606,9 @@ def update_note(note_id):
 
             cur.execute("UPDATE notes SET title = %s, updated_at = NOW() WHERE id = %s", (note_title, note_id))
             
-            process_and_update_note_content(cur, note_id, raw_content)
+            process_and_update_note_content(cur, note_id, note_content_json)
         
+        conn.commit() # Commit all changes from this transaction
         log_activity('note_updated', details={'note_id': note_id, 'note_title': note_title})
         flash('Note updated.', 'success')
     except Exception as e:
@@ -727,14 +807,6 @@ def api_notes_search():
         results = cur.fetchall()
         
     return jsonify([row['title'] for row in results])
-
-@app.route('/api/render_markdown', methods=['POST'])
-@login_required
-def api_render_markdown():
-    data = request.get_json()
-    markdown_text = data.get('text', '')
-    html = md.render(markdown_text)
-    return jsonify({'html': html})
 
 # --- Food Log Routes ---
 @app.route('/food_log/add', methods=['GET', 'POST'])
