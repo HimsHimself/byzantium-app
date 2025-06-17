@@ -124,8 +124,8 @@
                 </div>
                 
                 <div id="editorjs"
-                     data-note-content="{{ current_note.content | tojson | safe if current_note and current_note.content else '{}' }}"
-                     class="flex-grow p-4 overflow-y-auto">
+                    data-note-content='{{ current_note.content | tojson | safe if current_note and current_note.content else "{}" }}'
+                    class="flex-grow p-4 overflow-y-auto">
                 </div>
 
                 <div class="p-4 border-t border-slate-200 bg-slate-50/50 grid grid-cols-1 sm:grid-cols-2 gap-6 rounded-b-lg">
