@@ -401,6 +401,7 @@ def move_note(note_id):
     # Redirect back to the note that was just moved
     return redirect(url_for('view_note', note_id=note_id))
 
+
 @app.route('/note/<int:note_id>', methods=['GET'])
 @login_required
 def view_note(note_id):
@@ -418,22 +419,24 @@ def view_note(note_id):
                 flash('Note not found.', 'error')
                 return redirect(url_for('notes_page'))
 
-            # --- NEW ROBUST DATA HANDLING LOGIC ---
-            # This correctly handles content that was saved as a string instead of JSONB
+            # --- REVISED, SIMPLIFIED DATA HANDLING LOGIC ---
             content_data = current_note.get('content')
             
+            # Case 1: The content is a JSON string from the DB, load it into a dictionary.
             if isinstance(content_data, str):
                 try:
-                    # If it's a string, first try to parse it as JSON.
-                    # This handles the exact error case you're seeing.
                     current_note['content'] = json.loads(content_data)
                 except json.JSONDecodeError:
-                    # If it's not a valid JSON string, it's likely old Markdown.
+                    # If it's a string but not valid JSON, it's likely old Markdown.
+                    # This preserves the original robust logic's fallback.
                     current_note['content'] = convert_markdown_to_editorjs_json(content_data)
+            
+            # Case 2: The content from the DB is None (e.g., a new or empty note).
             elif content_data is None:
-                # If content is NULL in the database, provide a valid empty structure.
                 current_note['content'] = {"time": int(datetime.now().timestamp() * 1000), "blocks": [], "version": "2.28.0"}
-            # If content_data is already a dict (the correct format), we do nothing.
+
+            # Case 3: The content is already a dictionary (correctly loaded by psycopg2).
+            # No action is needed in this case.
 
             cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.source_note_id WHERE nr.target_note_id = %s ORDER BY n.title;", (note_id,))
             backlinks = cur.fetchall()
