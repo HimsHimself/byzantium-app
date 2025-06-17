@@ -116,13 +116,12 @@
           data-delete-url-template="{{ url_for('api_delete_note', note_id=0) }}">
         {% if current_note %}
             <div class="flex flex-col h-full bg-white rounded-lg border border-slate-200 shadow-sm">
-                <form id="note-editor-form" method="POST" action="{{ url_for('update_note', note_id=current_note.id) }}">
+                <div id="note-editor-form" action="{{ url_for('update_note', note_id=current_note.id) }}">
                     <div class="flex items-center gap-4 p-3 border-b border-slate-200">
                         <input type="text" name="note_title" value="{{ current_note.title }}" class="form-input text-xl font-bold flex-grow p-2 border-transparent focus:border-slate-300 focus:ring-0">
-                        <input type="hidden" name="note_content" id="note_content_hidden">
-                        <button type="submit" id="save-button" class="btn-primary font-semibold py-2 px-6 rounded-md shrink-0">Save</button>
+                        <button type="button" id="save-button" class="btn-primary font-semibold py-2 px-6 rounded-md shrink-0">Save</button>
                     </div>
-                </form>
+                </div>
                 
                 <div id="editorjs"
                      data-note-content="{{ current_note.content | tojson | safe if current_note and current_note.content else '{}' }}"
@@ -172,14 +171,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const editorPane = document.querySelector('.notes-editor-pane');
     
     if (editorElement && editorPane) {
-        // Read data from attributes to keep this script block clean of template syntax
         const noteContentData = JSON.parse(editorElement.dataset.noteContent);
 
         const editor = new EditorJS({
             holder: 'editorjs',
             autofocus: true,
             data: noteContentData,
-
             tools: {
                 header: { class: Header, inlineToolbar: true, config: { placeholder: 'Enter a header', levels: [1, 2, 3, 4], defaultLevel: 2 }, shortcut: 'CMD+SHIFT+H' },
                 list: { class: List, inlineToolbar: true, shortcut: 'CMD+SHIFT+L' },
@@ -191,24 +188,55 @@ document.addEventListener('DOMContentLoaded', () => {
             },
         });
 
-        const form = document.getElementById('note-editor-form');
-        const hiddenInput = document.getElementById('note_content_hidden');
+        const formContainer = document.getElementById('note-editor-form');
+        const saveButton = document.getElementById('save-button');
+        const titleInput = formContainer.querySelector('input[name="note_title"]');
 
-        form.addEventListener('submit', (event) => {
-            event.preventDefault(); 
-            
+        saveButton.addEventListener('click', (event) => {
+            event.preventDefault();
+
+            const noteTitle = titleInput.value;
+            const updateUrl = formContainer.getAttribute('action');
+
+            saveButton.disabled = true;
+            saveButton.textContent = 'Saving...';
+
             editor.save().then((outputData) => {
-                // Defensive check: Ensure outputData is an object before stringifying
-                if (outputData && typeof outputData === 'object') {
-                    hiddenInput.value = JSON.stringify(outputData);
-                } else {
-                    // If something went wrong, submit a valid empty structure
-                    hiddenInput.value = JSON.stringify({ blocks: [] });
-                }
-                form.submit();
+                const payload = {
+                    title: noteTitle,
+                    content: outputData
+                };
+
+                fetch(updateUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        createToast(data.message || 'Note saved!', 'success');
+                    } else {
+                        createToast('Error: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                })
+                .catch(err => {
+                    console.error('API Error:', err);
+                    createToast('A network error occurred while saving.', 'error');
+                })
+                .finally(() => {
+                    saveButton.disabled = false;
+                    saveButton.textContent = 'Save';
+                });
+
             }).catch((error) => {
-                console.error('Saving failed: ', error);
-                createToast('Error saving note. See console for details.', 'error');
+                console.error('Editor.js save failed: ', error);
+                createToast('Error preparing note data to save. See console.', 'error');
+                saveButton.disabled = false;
+                saveButton.textContent = 'Save';
             });
         });
     }
@@ -219,7 +247,6 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const noteIdToDelete = button.dataset.noteId;
             if (confirm('Are you sure you want to delete this note?')) {
-                // Read URLs from data attributes
                 const deleteUrlTemplate = editorPane.dataset.deleteUrlTemplate;
                 const finalDeleteUrl = deleteUrlTemplate.replace('0', noteIdToDelete);
 
@@ -232,9 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (data.success) {
                         const currentNoteId = editorPane.dataset.currentNoteId || null;
                         const notesUrl = editorPane.dataset.notesUrl;
-                        
                         document.querySelector(`li[data-note-id="${noteIdToDelete}"]`)?.remove();
-                        
                         if (currentNoteId && currentNoteId == noteIdToDelete) {
                            window.location.href = notesUrl;
                         } else {

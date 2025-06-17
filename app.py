@@ -577,47 +577,46 @@ def add_note():
 @app.route('/note/<int:note_id>/update', methods=['POST'])
 @login_required
 def update_note(note_id):
-    note_content_json_str = request.form.get('note_content', '{}')
-    note_title = request.form.get('note_title', '').strip()
-    redirect_url = url_for('view_note', note_id=note_id)
-    
-    if not note_title:
-        flash("Note title cannot be empty.", "error")
-        return redirect(redirect_url)
+    # Ensure the request content type is JSON
+    if not request.is_json:
+        return jsonify({"success": False, "error": "Invalid content type, request must be JSON."}), 415
 
-    try:
-        note_content_json = json.loads(note_content_json_str)
-    except json.JSONDecodeError:
-        flash("Invalid note data received from editor.", "error")
-        return redirect(redirect_url)
+    data = request.get_json()
+    note_content_json = data.get('content')
+    note_title = data.get('title', '').strip()
+
+    # Validate incoming data
+    if not note_title:
+        return jsonify({"success": False, "error": "Note title cannot be empty."}), 400
+    if note_content_json is None:
+        return jsonify({"success": False, "error": "Note content is missing from the request."}), 400
 
     conn = get_db()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Check if note exists
             cur.execute("SELECT id FROM notes WHERE id = %s AND user_id = 1", (note_id,))
             if not cur.fetchone():
-                flash("Note not found.", "error")
-                return redirect(url_for('notes_page'))
+                return jsonify({"success": False, "error": "Note not found."}), 404
             
+            # Check if new title is unique (excluding the current note)
             cur.execute("SELECT id FROM notes WHERE title = %s AND user_id = 1 AND id != %s", (note_title, note_id))
             if cur.fetchone():
-                flash(f"Another note with the title '{note_title}' already exists.", 'error')
-                return redirect(redirect_url)
+                return jsonify({"success": False, "error": f"Another note with the title '{note_title}' already exists."}), 400
 
+            # Update the title and process the JSON content for links
             cur.execute("UPDATE notes SET title = %s, updated_at = NOW() WHERE id = %s", (note_title, note_id))
-            
             process_and_update_note_content(cur, note_id, note_content_json)
         
-        conn.commit() # Commit all changes from this transaction
+        conn.commit()
         log_activity('note_updated', details={'note_id': note_id, 'note_title': note_title})
-        flash('Note updated.', 'success')
+        return jsonify({"success": True, "message": "Note updated successfully."})
+        
     except Exception as e:
         conn.rollback()
         log_activity('note_update_error', details={'note_id': note_id, 'error': str(e)})
-        flash(f"Error updating note: {e}", 'error')
         traceback.print_exc()
-        
-    return redirect(redirect_url)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route('/api/note/<int:note_id>/delete', methods=['POST'])
