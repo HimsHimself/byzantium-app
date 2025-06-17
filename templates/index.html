@@ -87,7 +87,25 @@
         .task-item input:checked + label { text-decoration: line-through; color: var(--color-text-muted); }
         [data-theme='byzantium'] .btn-primary { color: #ffffff; }
 
-        /* NEW: Comprehensive Theme Overrides */
+        /* NEW: Dashboard Hero Style */
+        .dashboard-hero {
+            border: 2px solid var(--color-primary);
+            background-color: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+            color: var(--color-primary);
+        }
+        .dashboard-hero h2 {
+           color: var(--color-primary);
+        }
+        .dashboard-hero p {
+            color: color-mix(in srgb, var(--color-primary) 70%, var(--color-surface));
+        }
+
+        [data-theme="mass-effect"] .dashboard-hero h2, [data-theme="mass-effect"] .dashboard-hero p {
+            color: var(--color-text-primary);
+        }
+
+
+        /* Comprehensive Theme Overrides */
         [data-theme="mass-effect"] a { color: var(--color-secondary); }
         [data-theme="mass-effect"] .sidebar-link, [data-theme="mass-effect"] #pageTitle, [data-theme="mass-effect"] .content-card h2, [data-theme="mass-effect"] .text-slate-800 { color: var(--color-text-primary); }
         [data-theme="mass-effect"] .sidebar-link:hover { color: var(--color-primary); }
@@ -194,9 +212,10 @@
         <main class="flex-1 p-6 md:p-8 overflow-y-auto">
             {% block content %}
             <div class="space-y-8">
-                <div class="p-6 rounded-lg btn-primary">
+                <!-- UPDATED: Hero section with new class and responsive adjustments -->
+                <div class="dashboard-hero rounded-lg p-4 md:p-6">
                     <h2 class="text-2xl lg:text-3xl font-bold">Your Imperial Dashboard</h2>
-                    <p class="mt-1 text-sm lg:text-base">A summary of your personal archives and daily logs.</p>
+                    <p class="mt-1 text-sm lg:text-base hidden md:block">A summary of your personal archives and daily logs.</p>
                 </div>
             
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
