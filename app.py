@@ -442,7 +442,9 @@ def view_note(note_id):
             print(f"4. Final type being sent to template: {type(content_for_editor)}")
             print("--- End Debugging ---")
             
-            current_note['content_for_editor'] = content_for_editor
+            # Manually dump the dictionary to a JSON string before passing to the template.
+            # This ensures it's in the exact format we need.
+            current_note['content_for_editor'] = json.dumps(content_for_editor)
             # --- END DEBUGGING AND DATA PREPARATION ---
 
             cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.source_note_id WHERE nr.target_note_id = %s ORDER BY n.title;", (note_id,))
