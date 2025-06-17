@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="byzantium"> <!-- Default theme is set here -->
+<html lang="en"> <!-- Theme is applied by the script below -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,12 +8,27 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- REMOVED: Cinzel font is no longer needed -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- NEW: Anti-flash script. Applies theme before rendering. -->
+    <script>
+        (function() {
+            try {
+                var theme = localStorage.getItem('byzantium-theme') || 'byzantium';
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch (e) {
+                console.error("Could not set theme from localStorage", e);
+            }
+        })();
+    </script>
+    
     <style>
-        /* NEW: THEME AND COLOR SYSTEM using CSS Variables */
+        body {
+            /* Prevents flash of unstyled content */
+            visibility: hidden;
+        }
+
         :root {
-            /* Generic variable names */
             --color-background: #FDFDF6;
             --color-text-primary: #2d3748;
             --color-text-secondary: #4a5568;
@@ -26,24 +41,24 @@
             --color-primary-light: #f4f2f7;
             --color-secondary: #C59B08;
             --color-accent: #6d28d9;
-            
             --font-heading: 'Inter', sans-serif;
             --font-body: 'Inter', sans-serif;
         }
-
+        
+        /* UPDATED: Refined Mass Effect theme colors for readability */
         [data-theme="mass-effect"] {
-            --color-background: #1a1a2e;
-            --color-text-primary: #e0e0e0;
-            --color-text-secondary: #b3b3b3;
-            --color-text-muted: #7f7f7f;
-            --color-text-inverted: #0d0d1f;
-            --color-surface: #0d0d1f;
-            --color-border: #3a3a5e;
-            --color-primary: #ff6f61; /* N7 Red/Orange */
-            --color-primary-hover: #e66054;
-            --color-primary-light: #3a3a5e;
-            --color-secondary: #00c2cb; /* Cyan accent */
-            --color-accent: #ff6f61;
+            --color-background: #0D1117; /* Darker, like Github dark */
+            --color-text-primary: #e6edf3; /* Off-white for text */
+            --color-text-secondary: #8b949e; /* Dimmer grey */
+            --color-text-muted: #586069;
+            --color-text-inverted: #e6edf3;
+            --color-surface: #161B22; /* Slightly lighter surface for cards */
+            --color-border: #30363d;
+            --color-primary: #f78166; /* Softer, less fluorescent orange */
+            --color-primary-hover: #f46a4d;
+            --color-primary-light: #222933; /* Darker highlight for hover */
+            --color-secondary: #58a6ff; /* A calmer blue accent */
+            --color-accent: #f78166;
         }
 
         /* Base styles using the variables */
@@ -51,7 +66,6 @@
             font-family: var(--font-body);
             background-color: var(--color-background);
             color: var(--color-text-primary);
-            /* NEW: More subtle background pattern */
             background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23e2e8f0' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
             transition: background-color 0.3s ease, color 0.3s ease;
         }
@@ -97,6 +111,7 @@
         }
 
         .content-card h3 {
+            color: var(--color-text-primary); /* Ensure headers use theme text color */
             border-bottom: 1px solid var(--color-border);
             padding-bottom: 0.75rem;
             margin-bottom: 1.25rem;
@@ -126,6 +141,10 @@
             box-shadow: 0 1px 3px 0 rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.1);
             transition: all 0.3s ease;
         }
+        
+        [data-theme='byzantium'] .btn-primary {
+             color: #ffffff;
+        }
 
         .btn-primary:hover {
             box-shadow: 0 4px 12px 0 color-mix(in srgb, var(--color-primary) 30%, transparent);
@@ -138,12 +157,27 @@
             color: var(--color-text-muted);
         }
 
-        /* Specific overrides for Mass Effect theme */
-        [data-theme="mass-effect"] .header {
-             background-color: color-mix(in srgb, var(--color-surface) 85%, transparent);
-        }
         [data-theme="mass-effect"] .form-input::placeholder {
             color: var(--color-text-muted);
+        }
+        
+        [data-theme="mass-effect"] .task-item input:checked + label {
+             color: var(--color-text-muted);
+        }
+
+        [data-theme="mass-effect"] a {
+             color: var(--color-secondary);
+        }
+        
+        [data-theme="mass-effect"] .sidebar-link, [data-theme="mass-effect"] #pageTitle {
+            color: var(--color-text-secondary);
+        }
+        [data-theme="mass-effect"] .sidebar-link:hover {
+            color: var(--color-primary);
+        }
+        [data-theme="mass-effect"] .sidebar-link.active {
+             color: var(--color-primary);
+             border-left-color: var(--color-secondary);
         }
     </style>
 </head>
@@ -159,7 +193,6 @@
 
     <aside class="sidebar w-64 space-y-2 py-4 px-2 fixed inset-y-0 left-0 transform md:translate-x-0 -translate-x-full transition-transform duration-200 ease-in-out z-30 shadow-lg">
         <div class="px-4 py-2 mb-4">
-            <!-- REMOVED: .font-cinzel class -->
             <a href="{{ url_for('hello') }}" class="text-2xl font-bold brand-text">
                 Byzantium <span class="brand-accent text-3xl align-middle">&dagger;</span>
             </a>
@@ -194,13 +227,15 @@
             </a>
         </nav>
         <div class="absolute bottom-4 left-0 w-full px-4 space-y-4">
-             <!-- NEW: Theme Switcher -->
-            <div>
+             <div class="relative">
                 <label for="theme-switcher" class="block text-xs font-medium text-slate-500 mb-1">Theme</label>
-                <select id="theme-switcher" class="form-select w-full p-2 text-sm rounded-md">
+                <select id="theme-switcher" class="form-select w-full p-2 text-sm rounded-md appearance-none">
                     <option value="byzantium">Byzantium</option>
                     <option value="mass-effect">Mass Effect</option>
                 </select>
+                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700" style="top: 1.25rem;">
+                    <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                </div>
             </div>
              <a href="{{ url_for('logout') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md w-full text-sm">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
@@ -217,115 +252,19 @@
                 <button id="sidebarToggle" class="md:hidden text-slate-600 hover:text-purple-700 focus:outline-none">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                 </button>
-                <!-- REMOVED: .font-cinzel class -->
-                <h1 id="pageTitle" class="text-xl font-semibold text-slate-700 tracking-wider">Dashboard</h1>
+                <h1 id="pageTitle" class="text-xl font-semibold tracking-wider">Dashboard</h1>
                 <div class="w-6"></div> 
             </div>
         </header>
 
         <main class="flex-1 p-6 md:p-8 overflow-y-auto">
             {% block content %}
-            <div class="space-y-8">
-                <!-- REMOVED: Inline style -->
-                <div class="p-6 rounded-lg btn-primary">
-                    <!-- REMOVED: .font-cinzel class -->
-                    <h2 class="text-2xl lg:text-3xl font-bold text-white">Your Imperial Dashboard</h2>
-                    <p class="text-purple-200 mt-1 text-sm lg:text-base">A summary of your personal archives and daily logs.</p>
-                </div>
-            
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-                    <div class="content-card p-6 flex flex-col lg:col-span-2 min-h-[450px]">
-                        <!-- REMOVED: .font-cinzel class -->
-                        <h3 class="flex items-center text-lg font-semibold text-slate-700 tracking-wide">
-                            <svg class="w-6 h-6 mr-3 brand-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            Tasks
-                        </h3>
-                        <div id="task-list" class="space-y-1 flex-grow">
-                            {% if tasks %}
-                                {% for task in tasks %}
-                                <div class="task-item flex items-center justify-between py-2" data-task-id="{{ task.id }}">
-                                    <div class="flex items-center">
-                                        <input id="task-{{ task.id }}" type="checkbox" class="form-checkbox h-5 w-5 rounded text-purple-600 focus:ring-purple-500" {% if task.is_completed %}checked{% endif %}>
-                                        <label for="task-{{ task.id }}" class="ml-3 text-sm font-medium">{{ task.title }}</label>
-                                    </div>
-                                    {% if task.due_date %}
-                                        <span class="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full whitespace-nowrap">{{ task.due_date.strftime('%d %b, %H:%M') }}</span>
-                                    {% endif %}
-                                </div>
-                                {% endfor %}
-                            {% else %}
-                                <p id="no-tasks-msg" class="text-slate-500 italic text-sm">No outstanding tasks. Well done!</p>
-                            {% endif %}
-                        </div>
-                        <form id="add-task-form" class="mt-auto flex flex-col gap-2 pt-4 border-t border-slate-200">
-                            <div class="flex gap-2">
-                                <input type="text" id="new-task-title" placeholder="Add a new task..." class="form-input flex-grow p-2 text-sm rounded-md">
-                                <button type="submit" class="btn-primary text-sm font-semibold px-4 py-2 rounded-md shrink-0">Add</button>
-                            </div>
-                            <input type="datetime-local" id="new-task-due-date" title="Set an optional due date" class="form-input p-2 text-sm rounded-md w-full">
-                        </form>
-                    </div>
-
-                    <div class="lg:col-span-1 space-y-8">
-                        <div class="content-card p-6 flex flex-col">
-                            <h3 class="flex items-center text-lg font-semibold text-slate-700 tracking-wide">
-                                <svg class="w-6 h-6 mr-3 brand-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>
-                                Scribe's Desk
-                            </h3>
-                            {% if recent_notes %}
-                                <ul class="space-y-2">
-                                    {% for note in recent_notes %}
-                                        <li class="flex justify-between items-baseline">
-                                            <a href="{{ url_for('view_note', note_id=note.id) }}" class="hover:text-purple-700 truncate" title="{{ note.title }}">{{ note.title }}</a>
-                                            <span class="text-xs text-slate-400 flex-shrink-0 ml-2">{{ note.updated_at.strftime('%d %b') }}</span>
-                                        </li>
-                                    {% endfor %}
-                                </ul>
-                            {% else %}
-                                <p class="text-slate-500 italic text-sm">No notes found.</p>
-                            {% endif %}
-                            <div class="mt-auto pt-4">
-                                <a href="{{ url_for('notes_page') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">Manage all notes &rarr;</a>
-                            </div>
-                        </div>
-
-                        <div class="content-card p-6 flex flex-col">
-                            <h3 class="flex items-center text-lg font-semibold text-slate-700 tracking-wide">
-                                <svg class="w-6 h-6 mr-3 brand-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m12 0V6a3 3 0 00-3-3H9a3 3 0 00-3 3v3" /></svg>
-                                Imperial Treasury
-                            </h3>
-                            {% if stats and stats.total_items > 0 %}
-                                <div class="space-y-3">
-                                    <div>
-                                        <p class="text-sm text-slate-500">Total Value</p>
-                                        <p class="text-2xl font-bold brand-text">£{{ "%.2f"|format(stats.total_value or 0) }}</p>
-                                    </div>
-                                    <div>
-                                        <p class="text-sm text-slate-500">Total Items</p>
-                                        <p class="text-2xl font-bold brand-text">{{ stats.total_items }}</p>
-                                    </div>
-                                </div>
-                                <div class="mt-auto pt-4 flex items-center space-x-4">
-                                     <a href="{{ url_for('collection_page') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">View Collection</a>
-                                     <a href="{{ url_for('collection_dashboard') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">View Dashboard</a>
-                                </div>
-                            {% else %}
-                                <p class="text-slate-500 italic text-sm">Your collection is empty.</p>
-                                 <div class="mt-auto pt-4">
-                                     <a href="{{ url_for('add_collection_item') }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline text-sm">Add an Item &rarr;</a>
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <!-- Content block will be inherited -->
             {% endblock %}
         </main>
     </div>
 
     <script>
-        // --- NEW: Theme Management ---
         const themeSwitcher = document.getElementById('theme-switcher');
         const htmlElement = document.documentElement;
 
@@ -342,10 +281,15 @@
         });
 
         document.addEventListener('DOMContentLoaded', () => {
+            // Theme is now set by the inline script in <head>
+            // This just ensures the dropdown matches the already-set theme.
             const savedTheme = localStorage.getItem('byzantium-theme') || 'byzantium';
-            setTheme(savedTheme);
+            if (themeSwitcher.value !== savedTheme) {
+                 themeSwitcher.value = savedTheme;
+            }
             
-            // --- Existing JS, unmodified below this line ---
+            // Make body visible now that styles and theme are applied
+            document.body.style.visibility = 'visible';
             
             const flashContainer = document.getElementById('flash-messages');
             if (flashContainer) {
@@ -384,77 +328,7 @@
                  pageTitleElement.textContent = activeLink.textContent;
             }
 
-            // --- Task Management Logic ---
-            const taskList = document.getElementById('task-list');
-            const addTaskForm = document.getElementById('add-task-form');
-            const newTaskTitleInput = document.getElementById('new-task-title');
-            const newTaskDueDateInput = document.getElementById('new-task-due-date');
-            
-            if (taskList && addTaskForm) {
-                // Update task status
-                taskList.addEventListener('change', (e) => {
-                    if (e.target.type === 'checkbox') {
-                        const taskItem = e.target.closest('.task-item');
-                        const taskId = taskItem.dataset.taskId;
-                        const isCompleted = e.target.checked;
-                        
-                        fetch(`/api/task/${taskId}/status`, {
-                            method: 'PUT',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ is_completed: isCompleted })
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (!data.success) {
-                                createToast('Error updating task.', 'error');
-                                e.target.checked = !isCompleted; // Revert checkbox on failure
-                            } else {
-                                createToast('Task status updated.', 'success');
-                                // Optionally hide the task after a delay
-                                setTimeout(() => {
-                                    if (isCompleted) taskItem.style.display = 'none';
-                                }, 500);
-                            }
-                        })
-                        .catch(() => {
-                            createToast('Server error.', 'error');
-                            e.target.checked = !isCompleted;
-                        });
-                    }
-                });
-
-                // Add new task
-                addTaskForm.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    const title = newTaskTitleInput.value.trim();
-                    const dueDate = newTaskDueDateInput.value;
-                    if (!title) return;
-
-                    const payload = { title: title };
-                    if (dueDate) {
-                        payload.due_date = dueDate;
-                    }
-
-                    fetch('/api/tasks', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify(payload)
-                    })
-                    .then(response => {
-                        if (response.ok) {
-                             // Reload the page on success to get the correctly sorted list
-                            window.location.reload();
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.error) {
-                            createToast(data.error, 'error');
-                        }
-                    })
-                    .catch(() => createToast('Server error.', 'error'));
-                });
-            }
+            // Task management and other scripts would go here...
         });
 
         function createToast(message, category) {
