@@ -5,58 +5,58 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Byzantium</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        /* UPDATED: Simplified style to match new theme */
         :root {
-            --imperial-purple: #4B0082;
-            --byzantine-gold: #C59B08;
-            --byzantine-ivory: #FDFDF6;
-            --byzantine-slate: #2d3748;
+            --color-primary: #4B0082;
+            --color-secondary: #C59B08;
+            --color-accent: #6d28d9;
+            --color-slate: #2d3748;
+            --color-background: #f8fafc;
         }
         body {
             font-family: 'Inter', sans-serif;
-            background-color: var(--byzantine-slate); /* Dark background for drama */
-            /* Using the same subtle pattern but inverted */
-            background-image: url("data:image/svg+xml,%3Csvg width='28' height='28' viewBox='0 0 28 28' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%234a5568' fill-opacity='0.2' fill-rule='evenodd'%3E%3Cpath d='M0 0h28v1H0zM14 2v26h1V2z'/%3E%3C/g%3E%3C/svg%3E");
+            background-color: var(--color-slate);
+            /* NEW: Subtle background pattern */
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%234a5568' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
         }
         .login-card {
             background-color: #ffffff;
             border: 1px solid #e2e8f0;
         }
         .btn-primary {
-            background-image: linear-gradient(to top right, var(--imperial-purple), #6d28d9);
+            background-image: linear-gradient(to top right, var(--color-primary), var(--color-accent));
             color: #ffffff;
             font-weight: 500;
             box-shadow: 0 1px 3px 0 rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.1);
             transition: all 0.3s ease;
         }
         .btn-primary:hover {
-            box-shadow: 0 4px 12px 0 rgba(75, 0, 130, 0.3);
+            box-shadow: 0 4px 12px 0 color-mix(in srgb, var(--color-primary) 30%, transparent);
             transform: translateY(-2px);
         }
         .form-input {
             background-color: #f8fafc;
             border: 1px solid #cbd5e1;
-            color: var(--byzantine-slate);
+            color: var(--color-slate);
             transition: all 0.2s ease-in-out;
         }
         .form-input:focus {
-            border-color: var(--imperial-purple);
-            box-shadow: 0 0 0 2px rgba(75, 0, 130, 0.2);
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
             outline: none;
         }
-        .byzantine-gold {
-            color: var(--byzantine-gold);
-        }
-        .font-cinzel {
-            font-family: 'Cinzel', serif;
+        .brand-accent {
+            color: var(--color-secondary);
         }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
     <div class="login-card p-8 md:p-12 rounded-xl shadow-2xl w-full max-w-md">
-        <h1 class="text-4xl font-bold text-slate-800 text-center mb-2 font-cinzel">
-            Byzantium <span class="byzantine-gold text-5xl align-middle">&dagger;</span>
+        <!-- REMOVED: .font-cinzel class -->
+        <h1 class="text-4xl font-bold text-slate-800 text-center mb-2">
+            Byzantium <span class="brand-accent text-5xl align-middle">&dagger;</span>
         </h1>
         <p class="text-center text-slate-500 mb-8">Access Your Personal Archive</p>
 

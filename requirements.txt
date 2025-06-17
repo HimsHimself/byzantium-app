@@ -25,7 +25,7 @@ markdown-it-py==3.0.0
 MarkupSafe==3.0.2
 matplotlib==3.10.3
 mdurl==0.1.2
-numpy==2.3.0
+numpy==2.2.6
 packaging==25.0
 pandas==2.3.0
 pillow==11.2.1
