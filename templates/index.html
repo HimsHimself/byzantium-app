@@ -8,8 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- UPDATED: Added Cinzel Decorative for Dune theme -->
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- UPDATED: Added new fonts for themes -->
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Inter:wght@300;400;500;600;700;800&family=Old+Standard+TT:wght@700&display=swap" rel="stylesheet">
     
     <!-- NEW: Anti-flash script. Applies theme before rendering. -->
     <script>
@@ -62,7 +62,6 @@
             --font-brand: 'Inter', sans-serif;
         }
 
-        /* NEW: Dune Theme */
         [data-theme="dune"] {
             --color-background: #F5EFE6; /* Parchment background */
             --color-text-primary: #4A403A; /* Dark brown text */
@@ -78,6 +77,23 @@
             --color-accent: #E58D2E;
             --font-brand: 'Cinzel Decorative', serif; /* Stylized font for branding */
         }
+        
+        /* NEW: WW1 Theme */
+        [data-theme="ww1"] {
+            --color-background: #EAE6D9; /* Aged paper */
+            --color-text-primary: #3D2B1F; /* Dark brown, almost black */
+            --color-text-secondary: #5C5248;
+            --color-text-muted: #8E8278;
+            --color-text-inverted: #F5F5F5;
+            --color-surface: #DCD6C8; /* Muted card background */
+            --color-border: #C8BFB2;
+            --color-primary: #8B0000; /* Dark Red (Poppy) */
+            --color-primary-hover: #6E0000;
+            --color-primary-light: #E0D9CC;
+            --color-secondary: #556B2F; /* Olive Drab Green */
+            --color-accent: #A52A2A; /* Lighter Brown/Red */
+            --font-brand: '"Old Standard TT"', serif;
+        }
 
         /* Base styles using the variables */
         body {
@@ -88,9 +104,12 @@
             transition: background-color 0.3s ease, color 0.3s ease;
         }
         
-        /* Dune-specific background */
         [data-theme="dune"] body {
              background-image: url("data:image/svg+xml,%3Csvg width='84' height='48' viewBox='0 0 84 48' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h12v12h12v12h12v12h12v12h12v12h12v12h12v12h12v12h-12v-12h-12v-12h-12v-12h-12v-12h-12v-12h-12v-12z' fill='%23D3C5B5' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E");
+        }
+
+        [data-theme="ww1"] body {
+             background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='p' width='100' height='100' patternUnits='userSpaceOnUse'%3E%3Cpath d='M50 0 v100 M0 50 h100' stroke='%23C8BFB2' stroke-width='1' shape-rendering='crispEdges'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='100%25' height='100%25' fill='url(%23p)' opacity='0.2'/%3E%3C/svg%3E");
         }
 
         .brand-title { font-family: var(--font-brand); }
@@ -126,52 +145,59 @@
             color: color-mix(in srgb, var(--color-primary) 70%, var(--color-surface));
         }
 
-        [data-theme="mass-effect"] .dashboard-hero h2, [data-theme="mass-effect"] .dashboard-hero p {
+        [data-theme="mass-effect"] .dashboard-hero h2, [data-theme="mass-effect"] .dashboard-hero p,
+        [data-theme="dune"] .dashboard-hero,
+        [data-theme="ww1"] .dashboard-hero {
             color: var(--color-text-primary);
         }
-        [data-theme="dune"] .dashboard-hero {
-            color: var(--color-text-primary);
-        }
-        [data-theme="dune"] .dashboard-hero h2 {
+        [data-theme="dune"] .dashboard-hero h2,
+        [data-theme="ww1"] .dashboard-hero h2 {
              color: var(--color-text-primary);
         }
-        [data-theme="dune"] .dashboard-hero p {
+        [data-theme="dune"] .dashboard-hero p,
+        [data-theme="ww1"] .dashboard-hero p {
             color: var(--color-text-secondary);
         }
 
 
         /* Comprehensive Theme Overrides */
-        [data-theme="mass-effect"] a, [data-theme="dune"] a { color: var(--color-secondary); }
+        [data-theme="mass-effect"] a, [data-theme="dune"] a, [data-theme="ww1"] a { color: var(--color-secondary); }
         [data-theme="mass-effect"] .sidebar-link, [data-theme="mass-effect"] #pageTitle, [data-theme="mass-effect"] .content-card h2, [data-theme="mass-effect"] .text-slate-800,
-        [data-theme="dune"] .sidebar-link, [data-theme="dune"] #pageTitle, [data-theme="dune"] .content-card h2, [data-theme="dune"] .text-slate-800 { color: var(--color-text-primary); }
-        [data-theme="mass-effect"] .sidebar-link:hover, [data-theme="dune"] .sidebar-link:hover { color: var(--color-primary); }
-        [data-theme="mass-effect"] .sidebar-link.active, [data-theme="dune"] .sidebar-link.active { color: var(--color-primary); border-left-color: var(--color-secondary); }
-        [data-theme="mass-effect"] .form-input::placeholder, [data-theme="dune"] .form-input::placeholder { color: var(--color-text-muted); }
+        [data-theme="dune"] .sidebar-link, [data-theme="dune"] #pageTitle, [data-theme="dune"] .content-card h2, [data-theme="dune"] .text-slate-800,
+        [data-theme="ww1"] .sidebar-link, [data-theme="ww1"] #pageTitle, [data-theme="ww1"] .content-card h2, [data-theme="ww1"] .text-slate-800 { color: var(--color-text-primary); }
+        [data-theme="mass-effect"] .sidebar-link:hover, [data-theme="dune"] .sidebar-link:hover, [data-theme="ww1"] .sidebar-link:hover { color: var(--color-primary); }
+        [data-theme="mass-effect"] .sidebar-link.active, [data-theme="dune"] .sidebar-link.active, [data-theme="ww1"] .sidebar-link.active { color: var(--color-primary); border-left-color: var(--color-secondary); }
+        [data-theme="mass-effect"] .form-input::placeholder, [data-theme="dune"] .form-input::placeholder, [data-theme="ww1"] .form-input::placeholder { color: var(--color-text-muted); }
         [data-theme="mass-effect"] .task-item input:checked + label, [data-theme="mass-effect"] .text-slate-500,
-        [data-theme="dune"] .task-item input:checked + label, [data-theme="dune"] .text-slate-500 { color: var(--color-text-secondary); }
+        [data-theme="dune"] .task-item input:checked + label, [data-theme="dune"] .text-slate-500,
+        [data-theme="ww1"] .task-item input:checked + label, [data-theme="ww1"] .text-slate-500 { color: var(--color-text-secondary); }
         [data-theme="mass-effect"] .bg-white, [data-theme="mass-effect"] .notes-editor-pane > div,
-        [data-theme="dune"] .bg-white, [data-theme="dune"] .notes-editor-pane > div { background-color: var(--color-surface) !important; }
-        [data-theme="mass-effect"] .notes-explorer, [data-theme="dune"] .notes-explorer { background-color: var(--color-surface); border: 1px solid var(--color-border); }
-        [data-theme="mass-effect"] .tree-item a, [data-theme="dune"] .tree-item a { color: var(--color-text-secondary); }
-        [data-theme="mass-effect"] .tree-item.active, [data-theme="dune"] .tree-item.active { background-color: var(--color-primary-light); }
-        [data-theme="mass-effect"] .tree-item.active a, [data-theme="dune"] .tree-item.active a { color: var(--color-primary); font-weight: 600; }
-        [data-theme="mass-effect"] .border-dashed, [data-theme="dune"] .border-dashed { border-color: var(--color-border); }
+        [data-theme="dune"] .bg-white, [data-theme="dune"] .notes-editor-pane > div,
+        [data-theme="ww1"] .bg-white, [data-theme="ww1"] .notes-editor-pane > div { background-color: var(--color-surface) !important; }
+        [data-theme="mass-effect"] .notes-explorer, [data-theme="dune"] .notes-explorer, [data-theme="ww1"] .notes-explorer { background-color: var(--color-surface); border: 1px solid var(--color-border); }
+        [data-theme="mass-effect"] .tree-item a, [data-theme="dune"] .tree-item a, [data-theme="ww1"] .tree-item a { color: var(--color-text-secondary); }
+        [data-theme="mass-effect"] .tree-item.active, [data-theme="dune"] .tree-item.active, [data-theme="ww1"] .tree-item.active { background-color: var(--color-primary-light); }
+        [data-theme="mass-effect"] .tree-item.active a, [data-theme="dune"] .tree-item.active a, [data-theme="ww1"] .tree-item.active a { color: var(--color-primary); font-weight: 600; }
+        [data-theme="mass-effect"] .border-dashed, [data-theme="dune"] .border-dashed, [data-theme="ww1"] .border-dashed { border-color: var(--color-border); }
         [data-theme="mass-effect"] .text-gray-900, [data-theme="mass-effect"] .text-slate-700,
-        [data-theme="dune"] .text-gray-900, [data-theme="dune"] .text-slate-700 { color: var(--color-text-primary); }
-        [data-theme="mass-effect"] .text-gray-500, [data-theme="dune"] .text-gray-500 { color: var(--color-text-secondary); }
+        [data-theme="dune"] .text-gray-900, [data-theme="dune"] .text-slate-700,
+        [data-theme="ww1"] .text-gray-900, [data-theme="ww1"] .text-slate-700 { color: var(--color-text-primary); }
+        [data-theme="mass-effect"] .text-gray-500, [data-theme="dune"] .text-gray-500, [data-theme="ww1"] .text-gray-500 { color: var(--color-text-secondary); }
         [data-theme="mass-effect"] .bg-slate-50, [data-theme="mass-effect"] .bg-slate-50\/50,
-        [data-theme="dune"] .bg-slate-50, [data-theme="dune"] .bg-slate-50\/50 { background-color: color-mix(in srgb, var(--color-surface), var(--color-background) 50%) !important; }
-        [data-theme="mass-effect"] .bg-slate-100, [data-theme="dune"] .bg-slate-100 { background-color: var(--color-primary-light) !important; }
-        [data-theme="mass-effect"] .border-slate-200, [data-theme="dune"] .border-slate-200 { border-color: var(--color-border); }
+        [data-theme="dune"] .bg-slate-50, [data-theme="dune"] .bg-slate-50\/50,
+        [data-theme="ww1"] .bg-slate-50, [data-theme="ww1"] .bg-slate-50\/50 { background-color: color-mix(in srgb, var(--color-surface), var(--color-background) 50%) !important; }
+        [data-theme="mass-effect"] .bg-slate-100, [data-theme="dune"] .bg-slate-100, [data-theme="ww1"] .bg-slate-100 { background-color: var(--color-primary-light) !important; }
+        [data-theme="mass-effect"] .border-slate-200, [data-theme="dune"] .border-slate-200, [data-theme="ww1"] .border-slate-200 { border-color: var(--color-border); }
         [data-theme="mass-effect"] .hover\:bg-slate-50:hover, [data-theme="mass-effect"] .hover\:bg-slate-200:hover,
-        [data-theme="dune"] .hover\:bg-slate-50:hover, [data-theme="dune"] .hover\:bg-slate-200:hover { background-color: var(--color-primary-light) !important; }
-        [data-theme="mass-effect"] .bg-blue-100, [data-theme="dune"] .bg-blue-100 { background-color: color-mix(in srgb, var(--color-secondary) 15%, transparent); }
-        [data-theme="mass-effect"] .text-blue-800, [data-theme="dune"] .text-blue-800 { color: var(--color-text-primary); }
-        [data-theme="mass-effect"] .bg-purple-100, [data-theme="dune"] .bg-purple-100 { background-color: color-mix(in srgb, var(--color-primary) 15%, transparent); }
-        [data-theme="mass-effect"] .text-purple-800, [data-theme="dune"] .text-purple-800 { color: var(--color-text-primary); }
-        [data-theme="mass-effect"] .text-purple-700, [data-theme="dune"] .text-purple-700 { color: var(--color-secondary); }
-        [data-theme="mass-effect"] .prose, [data-theme="dune"] .prose { color: var(--color-text-primary); }
-        [data-theme="mass-effect"] .btn-primary, [data-theme="dune"] .btn-primary { color: var(--color-text-inverted); font-weight: 600; }
+        [data-theme="dune"] .hover\:bg-slate-50:hover, [data-theme="dune"] .hover\:bg-slate-200:hover,
+        [data-theme="ww1"] .hover\:bg-slate-50:hover, [data-theme="ww1"] .hover\:bg-slate-200:hover { background-color: var(--color-primary-light) !important; }
+        [data-theme="mass-effect"] .bg-blue-100, [data-theme="dune"] .bg-blue-100, [data-theme="ww1"] .bg-blue-100 { background-color: color-mix(in srgb, var(--color-secondary) 15%, transparent); }
+        [data-theme="mass-effect"] .text-blue-800, [data-theme="dune"] .text-blue-800, [data-theme="ww1"] .text-blue-800 { color: var(--color-text-primary); }
+        [data-theme="mass-effect"] .bg-purple-100, [data-theme="dune"] .bg-purple-100, [data-theme="ww1"] .bg-purple-100 { background-color: color-mix(in srgb, var(--color-primary) 15%, transparent); }
+        [data-theme="mass-effect"] .text-purple-800, [data-theme="dune"] .text-purple-800, [data-theme="ww1"] .text-purple-800 { color: var(--color-text-primary); }
+        [data-theme="mass-effect"] .text-purple-700, [data-theme="dune"] .text-purple-700, [data-theme="ww1"] .text-purple-700 { color: var(--color-secondary); }
+        [data-theme="mass-effect"] .prose, [data-theme="dune"] .prose, [data-theme="ww1"] .prose { color: var(--color-text-primary); }
+        [data-theme="mass-effect"] .btn-primary, [data-theme="dune"] .btn-primary, [data-theme="ww1"] .btn-primary { color: var(--color-text-inverted); font-weight: 600; }
 
     </style>
 </head>
@@ -227,6 +253,7 @@
                     <option value="byzantium">Byzantium</option>
                     <option value="mass-effect">Mass Effect</option>
                     <option value="dune">Dune</option>
+                    <option value="ww1">WW1</option>
                 </select>
                  <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700" style="top: 1.25rem;">
                     <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
