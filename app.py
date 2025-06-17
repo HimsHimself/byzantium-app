@@ -419,23 +419,31 @@ def view_note(note_id):
                 flash('Note not found.', 'error')
                 return redirect(url_for('notes_page'))
 
-            # --- FINALIZED DATA HANDLING LOGIC ---
-            note_content_for_editor = current_note.get('content')
+            # --- DEBUGGING AND DATA PREPARATION ---
+            print("--- Debugging Note Content ---")
+            raw_content_from_db = current_note.get('content')
+            print(f"1. Type of raw content from DB: {type(raw_content_from_db)}")
+            print(f"2. Raw content value: {raw_content_from_db}")
 
-            # If content from the DB is a string, parse it into a dictionary
-            if isinstance(note_content_for_editor, str):
+            content_for_editor = raw_content_from_db
+            
+            if isinstance(content_for_editor, str):
                 try:
-                    note_content_for_editor = json.loads(note_content_for_editor)
+                    content_for_editor = json.loads(content_for_editor)
+                    print("3. Successfully parsed string content into a dictionary.")
                 except json.JSONDecodeError:
-                    # If parsing fails, treat it as old markdown text
-                    note_content_for_editor = convert_markdown_to_editorjs_json(note_content_for_editor)
+                    print("3. Could not parse string as JSON. Treating as Markdown.")
+                    content_for_editor = convert_markdown_to_editorjs_json(content_for_editor)
+
+            if not content_for_editor:
+                print("3. Content was empty or None. Creating default structure.")
+                content_for_editor = {"time": int(datetime.now().timestamp() * 1000), "blocks": [], "version": "2.28.0"}
             
-            # If content is missing or empty, create a valid default structure
-            if not note_content_for_editor:
-                note_content_for_editor = {"time": int(datetime.now().timestamp() * 1000), "blocks": [], "version": "2.28.0"}
+            print(f"4. Final type being sent to template: {type(content_for_editor)}")
+            print("--- End Debugging ---")
             
-            # We will pass this clean variable to the template instead of the original one.
-            current_note['content_for_editor'] = note_content_for_editor
+            current_note['content_for_editor'] = content_for_editor
+            # --- END DEBUGGING AND DATA PREPARATION ---
 
             cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.source_note_id WHERE nr.target_note_id = %s ORDER BY n.title;", (note_id,))
             backlinks = cur.fetchall()
