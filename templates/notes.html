@@ -171,74 +171,80 @@ document.addEventListener('DOMContentLoaded', () => {
     const editorPane = document.querySelector('.notes-editor-pane');
     
     if (editorElement && editorPane) {
-        const noteContentData = JSON.parse(editorElement.dataset.noteContent);
+        try {
+            const noteContentData = JSON.parse(editorElement.dataset.noteContent);
+            const editor = new EditorJS({
+                holder: 'editorjs',
+                autofocus: true,
+                data: noteContentData,
+                tools: {
+                    header: { class: Header, inlineToolbar: true, config: { placeholder: 'Enter a header', levels: [1, 2, 3, 4], defaultLevel: 2 }, shortcut: 'CMD+SHIFT+H' },
+                    list: { class: List, inlineToolbar: true, shortcut: 'CMD+SHIFT+L' },
+                    paragraph: { class: Paragraph, inlineToolbar: true, },
+                    quote: { class: Quote, inlineToolbar: true, shortcut: 'CMD+SHIFT+Q' },
+                    inlineCode: { class: InlineCode, shortcut: 'CMD+SHIFT+M' },
+                    linkTool: { class: LinkTool, },
+                    table: { class: Table, inlineToolbar: true, },
+                },
+            });
 
-        const editor = new EditorJS({
-            holder: 'editorjs',
-            autofocus: true,
-            data: noteContentData,
-            tools: {
-                header: { class: Header, inlineToolbar: true, config: { placeholder: 'Enter a header', levels: [1, 2, 3, 4], defaultLevel: 2 }, shortcut: 'CMD+SHIFT+H' },
-                list: { class: List, inlineToolbar: true, shortcut: 'CMD+SHIFT+L' },
-                paragraph: { class: Paragraph, inlineToolbar: true, },
-                quote: { class: Quote, inlineToolbar: true, shortcut: 'CMD+SHIFT+Q' },
-                inlineCode: { class: InlineCode, shortcut: 'CMD+SHIFT+M' },
-                linkTool: { class: LinkTool, },
-                table: { class: Table, inlineToolbar: true, },
-            },
-        });
+            const formContainer = document.getElementById('note-editor-form');
+            const saveButton = document.getElementById('save-button');
+            const titleInput = formContainer.querySelector('input[name="note_title"]');
 
-        const formContainer = document.getElementById('note-editor-form');
-        const saveButton = document.getElementById('save-button');
-        const titleInput = formContainer.querySelector('input[name="note_title"]');
+            saveButton.addEventListener('click', (event) => {
+                event.preventDefault();
 
-        saveButton.addEventListener('click', (event) => {
-            event.preventDefault();
+                const noteTitle = titleInput.value;
+                const updateUrl = formContainer.getAttribute('action');
 
-            const noteTitle = titleInput.value;
-            const updateUrl = formContainer.getAttribute('action');
+                saveButton.disabled = true;
+                saveButton.textContent = 'Saving...';
 
-            saveButton.disabled = true;
-            saveButton.textContent = 'Saving...';
+                editor.save().then((outputData) => {
+                    const payload = {
+                        title: noteTitle,
+                        content: outputData
+                    };
 
-            editor.save().then((outputData) => {
-                const payload = {
-                    title: noteTitle,
-                    content: outputData
-                };
+                    fetch(updateUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            createToast(data.message || 'Note saved!', 'success');
+                        } else {
+                            createToast('Error: ' + (data.error || 'Unknown error'), 'error');
+                        }
+                    })
+                    .catch(err => {
+                        console.error('API Error:', err);
+                        createToast('A network error occurred while saving.', 'error');
+                    })
+                    .finally(() => {
+                        saveButton.disabled = false;
+                        saveButton.textContent = 'Save';
+                    });
 
-                fetch(updateUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify(payload)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        createToast(data.message || 'Note saved!', 'success');
-                    } else {
-                        createToast('Error: ' + (data.error || 'Unknown error'), 'error');
-                    }
-                })
-                .catch(err => {
-                    console.error('API Error:', err);
-                    createToast('A network error occurred while saving.', 'error');
-                })
-                .finally(() => {
+                }).catch((error) => {
+                    console.error('Editor.js save failed: ', error);
+                    createToast('Error preparing note data to save. See console.', 'error');
                     saveButton.disabled = false;
                     saveButton.textContent = 'Save';
                 });
-
-            }).catch((error) => {
-                console.error('Editor.js save failed: ', error);
-                createToast('Error preparing note data to save. See console.', 'error');
-                saveButton.disabled = false;
-                saveButton.textContent = 'Save';
             });
-        });
+
+        } catch (error) {
+            console.error("Failed to initialize Editor.js:", error);
+            editorElement.innerHTML = '<div class="p-4 text-red-700 bg-red-100 rounded-md"><strong>Error: Could not load the note editor.</strong><p class="mt-2">The note data might be corrupted. This can happen if a previously saved note has an invalid format. To fix this, you may need to check the database directly.</p></div>';
+            createToast('Failed to load editor for this note.', 'error');
+        }
     }
 
     // AJAX Deletion for notes
