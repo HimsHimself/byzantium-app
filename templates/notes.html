@@ -110,7 +110,10 @@
         </div>
     </aside>
 
-    <main class="notes-editor-pane" data-current-note-id="{{ current_note.id if current_note else '' }}">
+    <main class="notes-editor-pane"
+          data-current-note-id="{{ current_note.id if current_note else '' }}"
+          data-notes-url="{{ url_for('notes_page') }}"
+          data-delete-url-template="{{ url_for('api_delete_note', note_id=0) }}">
         {% if current_note %}
             <div class="flex flex-col h-full bg-white rounded-lg border border-slate-200 shadow-sm">
                 <form id="note-editor-form" method="POST" action="{{ url_for('update_note', note_id=current_note.id) }}">
@@ -166,56 +169,25 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     const editorElement = document.getElementById('editorjs');
+    const editorPane = document.querySelector('.notes-editor-pane');
     
-    if (editorElement) {
-        // Read data from the data- attribute to keep the script clean
+    if (editorElement && editorPane) {
+        // Read data from attributes to keep this script block clean of template syntax
         const noteContentData = JSON.parse(editorElement.dataset.noteContent);
 
         const editor = new EditorJS({
             holder: 'editorjs',
             autofocus: true,
-            data: noteContentData, // Use the data read from the attribute
+            data: noteContentData,
 
             tools: {
-                header: {
-                    class: Header,
-                    inlineToolbar: true,
-                    config: {
-                        placeholder: 'Enter a header',
-                        levels: [1, 2, 3, 4],
-                        defaultLevel: 2
-                    },
-                    shortcut: 'CMD+SHIFT+H'
-                },
-                list: {
-                    class: List,
-                    inlineToolbar: true,
-                    shortcut: 'CMD+SHIFT+L'
-                },
-                paragraph: {
-                    class: Paragraph,
-                    inlineToolbar: true,
-                },
-                quote: {
-                    class: Quote,
-                    inlineToolbar: true,
-                    shortcut: 'CMD+SHIFT+Q'
-                },
-                inlineCode: {
-                    class: InlineCode,
-                    shortcut: 'CMD+SHIFT+M'
-                },
-                linkTool: {
-                    class: LinkTool,
-                },
-                table: {
-                    class: Table,
-                    inlineToolbar: true,
-                },
-            },
-
-            onReady: () => {
-                console.log('Editor.js is ready to work!');
+                header: { class: Header, inlineToolbar: true, config: { placeholder: 'Enter a header', levels: [1, 2, 3, 4], defaultLevel: 2 }, shortcut: 'CMD+SHIFT+H' },
+                list: { class: List, inlineToolbar: true, shortcut: 'CMD+SHIFT+L' },
+                paragraph: { class: Paragraph, inlineToolbar: true, },
+                quote: { class: Quote, inlineToolbar: true, shortcut: 'CMD+SHIFT+Q' },
+                inlineCode: { class: InlineCode, shortcut: 'CMD+SHIFT+M' },
+                linkTool: { class: LinkTool, },
+                table: { class: Table, inlineToolbar: true, },
             },
         });
 
@@ -226,7 +198,13 @@ document.addEventListener('DOMContentLoaded', () => {
             event.preventDefault(); 
             
             editor.save().then((outputData) => {
-                hiddenInput.value = JSON.stringify(outputData);
+                // Defensive check: Ensure outputData is an object before stringifying
+                if (outputData && typeof outputData === 'object') {
+                    hiddenInput.value = JSON.stringify(outputData);
+                } else {
+                    // If something went wrong, submit a valid empty structure
+                    hiddenInput.value = JSON.stringify({ blocks: [] });
+                }
                 form.submit();
             }).catch((error) => {
                 console.error('Saving failed: ', error);
@@ -241,20 +219,24 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const noteIdToDelete = button.dataset.noteId;
             if (confirm('Are you sure you want to delete this note?')) {
-                fetch(`{{ url_for('api_delete_note', note_id=0) }}`.replace('0', noteIdToDelete), { // A safe way to build URL
+                // Read URLs from data attributes
+                const deleteUrlTemplate = editorPane.dataset.deleteUrlTemplate;
+                const finalDeleteUrl = deleteUrlTemplate.replace('0', noteIdToDelete);
+
+                fetch(finalDeleteUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        const editorPane = document.querySelector('.notes-editor-pane');
-                        const currentNoteId = editorPane ? editorPane.dataset.currentNoteId : null;
+                        const currentNoteId = editorPane.dataset.currentNoteId || null;
+                        const notesUrl = editorPane.dataset.notesUrl;
                         
                         document.querySelector(`li[data-note-id="${noteIdToDelete}"]`)?.remove();
                         
                         if (currentNoteId && currentNoteId == noteIdToDelete) {
-                           window.location.href = "{{ url_for('notes_page') }}";
+                           window.location.href = notesUrl;
                         } else {
                            createToast('Note deleted.', 'success');
                         }
