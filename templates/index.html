@@ -1,6 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"> <!-- Theme is applied by the script below -->
-<head>
+<html lang="en"> <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Byzantium Dashboard</title>
@@ -8,10 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- UPDATED: Added new fonts for themes -->
     <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Inter:wght@300;400;500;600;700;800&family=Old+Standard+TT:wght@700&display=swap" rel="stylesheet">
     
-    <!-- NEW: Anti-flash script. Applies theme before rendering. -->
     <script>
         (function() {
             try {
@@ -105,7 +102,7 @@
         }
         
         [data-theme="dune"] body {
-             background-image: url("data:image/svg+xml,%3Csvg width='84' height='48' viewBox='0 0 84 48' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h12v12h12v12h12v12h12v12h12v12h12v12h12v12h12v12h-12v-12h-12v-12h-12v-12h-12v-12h-12v-12h-12v-12z' fill='%23D3C5B5' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E");
+             background-image: url("data:image/svg+xml,%3Csvg width='84' height='48' viewBox='0 0 84 48' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h12v12h12v12h12v12h12v12h12v12h12v12h12v12h-12v-12h-12v-12h-12v-12h-12v-12h-12v-12h-12v-12z' fill='%23D3C5B5' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E");
         }
 
         [data-theme="ww1"] body {
@@ -122,11 +119,13 @@
         .brand-accent { color: var(--color-secondary); }
         .content-card { background-color: var(--color-surface); border: 1px solid var(--color-border); border-top: 3px solid var(--color-primary); box-shadow: 0 5px 15px -3px rgb(0 0 0 / 0.07), 0 4px 6px -4px rgb(0 0 0 / 0.1); border-radius: 0.75rem; }
         .content-card h3 { color: var(--color-text-primary); border-bottom: 1px solid var(--color-border); padding-bottom: 0.75rem; margin-bottom: 1.25rem; }
-        .form-input, .form-checkbox, .form-select, .form-textarea { background-color: color-mix(in srgb, var(--color-background) 50%, var(--color-surface) 50%); border: 1px solid var(--color-border); color: var(--color-text-primary); transition: all 0.2s ease-in-out; }
+        .form-input, .form-checkbox, .form-select, .form-textarea { background-color: var(--color-background); border: 1px solid var(--color-border); color: var(--color-text-primary); transition: all 0.2s ease-in-out; }
         .form-input:focus, .form-checkbox:focus, .form-select:focus, .form-textarea:focus { border-color: var(--color-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent); outline: none; }
         .form-checkbox:checked { background-color: var(--color-primary); border-color: var(--color-primary); }
         .btn-primary { background-image: linear-gradient(to top right, var(--color-primary), var(--color-accent)); color: var(--color-text-inverted); font-weight: 500; box-shadow: 0 1px 3px 0 rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.1); transition: all 0.3s ease; }
         .btn-primary:hover { box-shadow: 0 4px 12px 0 color-mix(in srgb, var(--color-primary) 30%, transparent); transform: translateY(-2px); }
+        .btn-reset { background-color: #e2e8f0; color: #334155; font-weight: 600; padding: 0.5rem 1rem; border-radius: 0.375rem; text-align: center; transition: background-color 0.2s; }
+        .btn-reset:hover { background-color: #cbd5e1; }
         .task-item label { transition: color 0.2s; }
         .task-item input:checked + label { text-decoration: line-through; color: var(--color-text-muted); }
         [data-theme='byzantium'] .btn-primary { color: #ffffff; }
@@ -159,6 +158,26 @@
             color: var(--color-text-secondary);
         }
 
+        /* Themed radio buttons for food log */
+        .themed-radio-label {
+            color: var(--color-text-secondary);
+            border: 1px solid var(--color-border);
+            background-color: var(--color-surface);
+            border-radius: 9999px;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .themed-radio-label:hover {
+            background-color: var(--color-primary-light);
+            border-color: color-mix(in srgb, var(--color-border) 50%, var(--color-primary) 50%);
+        }
+        input[type="radio"]:checked + .themed-radio-label {
+            background-color: var(--color-primary-light);
+            color: var(--color-primary);
+            border-color: var(--color-primary);
+            font-weight: 600;
+        }
 
         /* Comprehensive Theme Overrides */
         [data-theme="mass-effect"] a, [data-theme="dune"] a, [data-theme="ww1"] a { color: var(--color-secondary); }
@@ -187,7 +206,6 @@
         [data-theme="dune"] .bg-slate-50, [data-theme="dune"] .bg-slate-50\/50,
         [data-theme="ww1"] .bg-slate-50, [data-theme="ww1"] .bg-slate-50\/50 { background-color: color-mix(in srgb, var(--color-surface), var(--color-background) 50%) !important; }
         [data-theme="mass-effect"] .bg-slate-100, [data-theme="dune"] .bg-slate-100, [data-theme="ww1"] .bg-slate-100 { background-color: var(--color-primary-light) !important; }
-        [data-theme="mass-effect"] .border-slate-200, [data-theme="dune"] .border-slate-200, [data-theme="ww1"] .border-slate-200 { border-color: var(--color-border); }
         [data-theme="mass-effect"] .hover\:bg-slate-50:hover, [data-theme="mass-effect"] .hover\:bg-slate-200:hover,
         [data-theme="dune"] .hover\:bg-slate-50:hover, [data-theme="dune"] .hover\:bg-slate-200:hover,
         [data-theme="ww1"] .hover\:bg-slate-50:hover, [data-theme="ww1"] .hover\:bg-slate-200:hover { background-color: var(--color-primary-light) !important; }
@@ -198,6 +216,11 @@
         [data-theme="mass-effect"] .text-purple-700, [data-theme="dune"] .text-purple-700, [data-theme="ww1"] .text-purple-700 { color: var(--color-secondary); }
         [data-theme="mass-effect"] .prose, [data-theme="dune"] .prose, [data-theme="ww1"] .prose { color: var(--color-text-primary); }
         [data-theme="mass-effect"] .btn-primary, [data-theme="dune"] .btn-primary, [data-theme="ww1"] .btn-primary { color: var(--color-text-inverted); font-weight: 600; }
+        [data-theme="mass-effect"] .btn-reset { background-color: var(--color-surface); color: var(--color-text-primary); border: 1px solid var(--color-border); }
+        [data-theme="mass-effect"] .btn-reset:hover { background-color: var(--color-border); }
+        [data-theme="dune"] .btn-reset, [data-theme="ww1"] .btn-reset { background-color: var(--color-surface); color: var(--color-text-primary); border: 1px solid var(--color-border); }
+        [data-theme="dune"] .btn-reset:hover, [data-theme="ww1"] .btn-reset:hover { background-color: var(--color-background); }
+
 
     </style>
 </head>
@@ -282,7 +305,6 @@
         <main class="flex-1 p-6 md:p-8 overflow-y-auto">
             {% block content %}
             <div class="space-y-8">
-                <!-- UPDATED: Hero section with new class and responsive adjustments -->
                 <div class="dashboard-hero rounded-lg p-4 md:p-6">
                     <h2 class="text-2xl lg:text-3xl font-bold">Your Imperial Dashboard</h2>
                     <p class="mt-1 text-sm lg:text-base hidden md:block">A summary of your personal archives and daily logs.</p>

@@ -1,0 +1,60 @@
+{% extends "index.html" %}
+
+{% block content %}
+<div class="content-card rounded-lg p-4 md:p-6">
+    <h2 class="text-2xl font-semibold text-slate-800 mb-6">Activity Log (Last 100 Entries)</h2>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+            <thead class="text-xs uppercase bg-slate-100">
+                <tr>
+                    <th scope="col" class="px-6 py-3">Timestamp</th>
+                    <th scope="col" class="px-6 py-3">Activity Type</th>
+                    <th scope="col" class="px-6 py-3">Path</th>
+                    <th scope="col" class="px-6 py-3">IP Address</th>
+                    <th scope="col" class="px-6 py-3">Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if activities %}
+                    {% for activity in activities %}
+                    <tr class="bg-white border-b hover:bg-slate-50">
+                        <td class="px-6 py-3 whitespace-nowrap align-top">{{ activity.formatted_timestamp }}</td>
+                        <td class="px-6 py-3 align-top">{{ activity.activity_type }}</td>
+                        <td class="px-6 py-3 align-top">{{ activity.path }}</td>
+                        <td class="px-6 py-3 align-top">{{ activity.ip_address }}</td>
+                        <td class="px-6 py-3 align-top">
+                            {% if activity.details %}
+                            <pre class="details-json">{{ activity.details|tojson(indent=2) }}</pre>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-4 text-center text-slate-500 italic">No activities found.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.details-json {
+    max-width: 400px;
+    max-height: 200px;
+    overflow: auto;
+    white-space: pre-wrap;
+    background-color: var(--color-primary-light);
+    color: var(--color-text-secondary);
+    padding: 0.5rem;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.8em;
+    word-break: break-all;
+}
+</style>
+{% endblock %}
