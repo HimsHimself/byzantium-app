@@ -50,7 +50,7 @@
             --color-text-primary: #e6edf3;
             --color-text-secondary: #8b949e;
             --color-text-muted: #586069;
-            --color-text-inverted: #e6edf3;
+            --color-text-inverted: #0D1117; /* Dark text for buttons */
             --color-surface: #161B22;
             --color-border: #30363d;
             --color-primary: #f78166;
@@ -87,7 +87,7 @@
         .task-item input:checked + label { text-decoration: line-through; color: var(--color-text-muted); }
         [data-theme='byzantium'] .btn-primary { color: #ffffff; }
 
-        /* NEW: Dashboard Hero Style */
+        /* Dashboard Hero Style */
         .dashboard-hero {
             border: 2px solid var(--color-primary);
             background-color: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
@@ -130,6 +130,8 @@
         [data-theme="mass-effect"] .text-purple-800 { color: var(--color-text-primary); }
         [data-theme="mass-effect"] .text-purple-700 { color: var(--color-secondary); }
         [data-theme="mass-effect"] .prose { color: var(--color-text-primary); }
+        /* NEW: Button text color fix */
+        [data-theme="mass-effect"] .btn-primary { color: var(--color-text-inverted); font-weight: 600; }
 
     </style>
 </head>
