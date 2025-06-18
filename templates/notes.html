@@ -115,7 +115,6 @@
                     </div>
                 </div>
                 
-                {# MODIFICATION 1: The data attribute has been removed from this div. #}
                 <div id="editorjs" class="flex-grow p-4 overflow-y-auto">
                 </div>
 
@@ -153,7 +152,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@editorjs/table@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@editorjs/paragraph@latest"></script>
 
-{# MODIFICATION 2: This new script block safely injects the note data into a JavaScript variable. #}
 {% if current_note and current_note.content_for_editor %}
 <script>
     var noteContentData = {{ current_note.content_for_editor | tojson | safe }};
@@ -177,23 +175,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const editorElement = document.getElementById('editorjs');
     const editorPane = document.querySelector('.notes-editor-pane');
     
-    // MODIFICATION 3: The logic now checks for the globally defined variable 'noteContentData'.
     if (editorElement && editorPane && typeof noteContentData !== 'undefined') {
+        
+        // Log the data object to the browser's console for debugging.
+        console.log("Initializing Editor.js with the following data:", noteContentData);
+
         try {
-            // The 'noteContentData' variable is already a valid JavaScript object.
-            // No parsing (`JSON.parse`) is needed.
             const editor = new EditorJS({
                 holder: 'editorjs',
                 autofocus: true,
                 data: noteContentData,
+                
+                // Temporarily simplifying the toolset for debugging
                 tools: {
-                    header: { class: Header, inlineToolbar: true, config: { placeholder: 'Enter a header', levels: [1, 2, 3, 4], defaultLevel: 2 }, shortcut: 'CMD+SHIFT+H' },
-                    list: { class: List, inlineToolbar: true, shortcut: 'CMD+SHIFT+L' },
-                    paragraph: { class: Paragraph, inlineToolbar: true, },
-                    quote: { class: Quote, inlineToolbar: true, shortcut: 'CMD+SHIFT+Q' },
-                    inlineCode: { class: InlineCode, shortcut: 'CMD+SHIFT+M' },
-                    linkTool: { class: LinkTool, },
-                    table: { class: Table, inlineToolbar: true, },
+                    header: Header,
+                    paragraph: {
+                        class: Paragraph,
+                        inlineToolbar: true,
+                    },
+                    list: List, // Keeping list as it's a common, simple tool
                 },
             });
 
