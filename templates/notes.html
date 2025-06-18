@@ -115,9 +115,8 @@
                     </div>
                 </div>
                 
-                <div id="editorjs"
-                    data-note-content='{{ current_note.content_for_editor | tojson | safe }}'
-                    class="flex-grow p-4 overflow-y-auto">
+                {# MODIFICATION 1: The data attribute has been removed from this div. #}
+                <div id="editorjs" class="flex-grow p-4 overflow-y-auto">
                 </div>
 
                 <div class="p-4 border-t border-slate-200 bg-slate-50/50 grid grid-cols-1 sm:grid-cols-2 gap-6 rounded-b-lg">
@@ -154,6 +153,13 @@
 <script src="https://cdn.jsdelivr.net/npm/@editorjs/table@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@editorjs/paragraph@latest"></script>
 
+{# MODIFICATION 2: This new script block safely injects the note data into a JavaScript variable. #}
+{% if current_note and current_note.content_for_editor %}
+<script>
+    var noteContentData = {{ current_note.content_for_editor | tojson | safe }};
+</script>
+{% endif %}
+
 <script>
     function toggleAddForm(formId, event) {
         event.preventDefault();
@@ -171,9 +177,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const editorElement = document.getElementById('editorjs');
     const editorPane = document.querySelector('.notes-editor-pane');
     
-    if (editorElement && editorPane) {
+    // MODIFICATION 3: The logic now checks for the globally defined variable 'noteContentData'.
+    if (editorElement && editorPane && typeof noteContentData !== 'undefined') {
         try {
-            const noteContentData = JSON.parse(editorElement.dataset.noteContent);
+            // The 'noteContentData' variable is already a valid JavaScript object.
+            // No parsing (`JSON.parse`) is needed.
             const editor = new EditorJS({
                 holder: 'editorjs',
                 autofocus: true,
