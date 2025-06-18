@@ -74,33 +74,50 @@
 
     /* --- NEW EDITOR STYLES --- */
 
-/* 1. Heading Font Sizes & Spacing */
-    #editorjs h1 { 
-        @apply text-5xl font-black pb-2 mb-6; /* Larger and heavier weight */
+    /* 1. Heading Font Sizes & Spacing */
+    #editorjs h1 {
         font-family: var(--font-brand);
+        font-size: 3rem; /* text-5xl */
+        line-height: 1;
+        font-weight: 900; /* font-black */
+        padding-bottom: 0.5rem; /* pb-2 */
+        margin-bottom: 1.5rem; /* mb-6 */
     }
-    #editorjs h2 { 
-        @apply text-3xl font-extrabold pb-3 mb-4 mt-6 relative; /* Bolder with more spacing */
+    #editorjs h2 {
         font-family: var(--font-brand);
+        font-size: 1.875rem; /* text-3xl */
+        line-height: 2.25rem;
+        font-weight: 800; /* font-extrabold */
+        padding-bottom: 0.5rem; /* pb-2 */
+        margin-top: 1.5rem; /* mt-6 */
+        margin-bottom: 1rem; /* mb-4 */
+        border-bottom: 1px solid var(--color-border);
     }
-    /* Adds a decorative accent line instead of a full underline for H2 */
-    #editorjs h2::after {
-        content: '';
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        width: 4rem; /* 64px */
-        height: 3px;
-        background-color: var(--color-secondary);
-        border-radius: 2px;
-    }
-    #editorjs h3 { 
-        @apply text-2xl font-extrabold mb-3 mt-5; /* Bolder with more top spacing */
+    #editorjs h3 {
         font-family: var(--font-brand);
+        font-size: 1.5rem; /* text-2xl */
+        line-height: 2rem;
+        font-weight: 700; /* font-bold */
+        margin-top: 1.25rem; /* mt-5 */
+        margin-bottom: 0.75rem; /* mb-3 */
     }
-    #editorjs h4 { @apply text-xl font-semibold mb-1 mt-2; }
-    #editorjs h5 { @apply text-lg font-medium; }
-    #editorjs h6 { @apply text-base font-medium; }
+    #editorjs h4 {
+        font-size: 1.25rem; /* text-xl */
+        line-height: 1.75rem;
+        font-weight: 600; /* font-semibold */
+        margin-top: 0.5rem; /* mt-2 */
+        margin-bottom: 0.25rem; /* mb-1 */
+    }
+    #editorjs h5 {
+        font-size: 1.125rem; /* text-lg */
+        line-height: 1.75rem;
+        font-weight: 500; /* font-medium */
+    }
+    #editorjs h6 {
+        font-size: 1rem; /* text-base */
+        line-height: 1.5rem;
+        font-weight: 500; /* font-medium */
+    }
 
     /* 2. General Editor Look & Feel Integration */
 
