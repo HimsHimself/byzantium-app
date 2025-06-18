@@ -142,14 +142,14 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/header@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/list@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/inline-code@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/link@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/quote@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/table@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/paragraph@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@2.29.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/header@2.8.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/list@1.9.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/inline-code@1.5.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/link@2.6.2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/quote@2.6.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/table@2.3.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/paragraph@2.11.4"></script>
 
 {% if current_note and current_note.content_for_editor %}
 <script>
@@ -189,6 +189,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         class: Header,
                         inlineToolbar: true
                     },
+                    list: {
+                        class: List,
+                        inlineToolbar: true
+                    },
                     paragraph: {
                         class: Paragraph,
                         inlineToolbar: true,
@@ -200,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     inlineCode: {
                         class: InlineCode
                     },
-                    link: { // <-- Key changed from linkTool to link
+                    link: { 
                         class: LinkTool
                     },
                     table: {
