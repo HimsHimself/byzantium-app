@@ -9,10 +9,14 @@
                 <details {{ 'open' if current_note and current_note.folder_id and item.id == current_note.folder_id else '' }}>
                     <summary class="group flex justify-between items-center px-1 py-0.5 rounded-md hover:bg-slate-200 cursor-pointer">
                         <div class="flex items-center gap-1.5 flex-grow truncate">
+                            <svg class="chevron-arrow w-4 h-4 text-slate-400 mr-0.5 shrink-0 transition-transform duration-200" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
                             <svg class="w-4 h-4 text-amber-600 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M19.5 21a3 3 0 003-3v-9a3 3 0 00-3-3h-6.879a.75.75 0 01-.53-.22L11.53 5.22a.75.75 0 00-.53-.22H4.5a3 3 0 00-3 3v12a3 3 0 003 3h15z" /></svg>
                             <span class="text-sm font-medium text-slate-700 truncate">{{ item.name }}</span>
                         </div>
                         <div class="flex items-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <a href="#" onclick="toggleAddForm('add-folder-form-{{ item.id }}', event)" title="Add Subfolder" class="p-0.5 text-slate-500 hover:text-purple-600">
+                                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M2 3.5A1.5 1.5 0 013.5 2h3.879a1.5 1.5 0 011.06.44l.822.822A1.5 1.5 0 0010.379 4H16.5A1.5 1.5 0 0118 5.5v1.5H3a1 1 0 00-1 1v6.5A1.5 1.5 0 003.5 16h13a1.5 1.5 0 001.5-1.5v-6.25a.75.75 0 00-1.5 0V14.5a.5.5 0 01-.5.5h-13a.5.5 0 01-.5-.5v-6.5a.5.5 0 01.5-.5H18V6a.5.5 0 00-.5-.5h-6.121a1.5 1.5 0 01-1.06-.44l-.822-.822A1.5 1.5 0 006.379 3H3.5A.5.5 0 003 3.5v6.25a.75.75 0 001.5 0V4a1 1 0 00-1-1z" /><path d="M14 10.5a.5.5 0 01.5-.5h1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1zM10.5 12a.5.5 0 00.5.5h1a.5.5 0 00.5-.5v-1a.5.5 0 00-.5-.5h-1a.5.5 0 00-.5.5v1z" /><path d="M14.5 12.5a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1a.5.5 0 01.5-.5h1z" /></svg>
+                            </a>
                             <a href="#" onclick="toggleAddForm('add-note-form-{{ item.id }}', event)" title="Add Note" class="p-0.5 text-slate-500 hover:text-purple-600">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                             </a>
@@ -23,11 +27,18 @@
                             </form>
                         </div>
                     </summary>
-                    <div id="add-note-form-{{ item.id }}" class="hidden pl-4 pt-1">
+                    <div id="add-folder-form-{{ item.id }}" class="hidden pl-6 pr-2 py-1">
+                        <form method="POST" action="{{ url_for('add_folder') }}" class="flex gap-2">
+                             <input type="hidden" name="parent_folder_id" value="{{ item.id }}">
+                            <input type="text" name="folder_name" placeholder="New Folder..." required class="form-input flex-grow p-1 text-sm rounded-md">
+                            <button type="submit" class="btn-primary text-xs px-2 py-1 rounded-md shrink-0">Add</button>
+                        </form>
+                    </div>
+                    <div id="add-note-form-{{ item.id }}" class="hidden pl-6 pr-2 py-1">
                         <form method="POST" action="{{ url_for('add_note') }}" class="flex gap-2">
                              <input type="hidden" name="folder_id" value="{{ item.id }}">
-                            <input type="text" name="note_title" placeholder="New Note Title..." required class="form-input flex-grow p-1 text-sm rounded-md">
-                            <button type="submit" class="btn-primary text-xs px-2 rounded-md shrink-0">Add</button>
+                            <input type="text" name="note_title" placeholder="New Note..." required class="form-input flex-grow p-1 text-sm rounded-md">
+                            <button type="submit" class="btn-primary text-xs px-2 py-1 rounded-md shrink-0">Add</button>
                         </form>
                     </div>
                     {{ render_tree(item.children, false, current_note_id) }}
@@ -66,8 +77,8 @@
     .tree-item.active a { color: var(--color-primary); font-weight: 600; }
     details > summary { list-style: none; }
     details > summary::-webkit-details-marker { display: none; }
-    details > summary::before { content: '►'; font-size: 0.6em; margin-right: 0.25rem; transition: transform 0.2s; display: inline-block; vertical-align: middle; }
-    details[open] > summary::before { transform: rotate(90deg); }
+    details[open] > summary .chevron-arrow { transform: rotate(90deg); }
+    
     /* Styling for the editor */
     .codex-editor__redactor { padding-bottom: 100px !important; }
     .ce-block__content, .ce-toolbar__content { max-width: 800px; }
@@ -197,7 +208,6 @@
     [data-theme="mass-effect"] #editorjs .ce-code__textarea {
          background-color: #010409;
     }
-
 </style>
 
 <div class="notes-container">
@@ -214,16 +224,16 @@
             </div>
             {% endif %}
         </div>
-        <div class="mt-4 pt-4 border-t border-slate-200 space-y-3">
-             <form method="POST" action="{{ url_for('add_folder') }}" class="flex gap-2">
+        <div id="root-add-controls" class="mt-4 pt-4 border-t border-slate-200 space-y-2">
+            <div class="flex gap-2">
+                <button onclick="showRootAddForm('folder', this)" class="btn-reset flex-1 text-sm py-2">New Folder</button>
+                <button onclick="showRootAddForm('note', this)" class="btn-reset flex-1 text-sm py-2">New Note</button>
+            </div>
+            <form id="root-add-form" method="POST" action="" class="hidden flex gap-2">
                 <input type="hidden" name="parent_folder_id" value="">
-                <input type="text" name="folder_name" placeholder="New Root Folder..." required class="form-input flex-grow p-2 text-sm rounded-md">
-                <button type="submit" class="btn-primary text-sm px-3 py-2 rounded-md shrink-0">Add Folder</button>
-            </form>
-             <form method="POST" action="{{ url_for('add_note') }}" class="flex gap-2">
                 <input type="hidden" name="folder_id" value="">
-                <input type="text" name="note_title" placeholder="New Note..." required class="form-input flex-grow p-2 text-sm rounded-md">
-                <button type="submit" class="btn-primary text-sm px-3 py-2 rounded-md shrink-0">Create Note</button>
+                <input id="root-add-input" type="text" name="name" placeholder="..." required class="form-input flex-grow p-2 text-sm rounded-md">
+                <button type="submit" class="btn-primary text-sm px-4 py-2 rounded-md shrink-0">Add</button>
             </form>
         </div>
     </aside>
@@ -298,6 +308,30 @@
         }
     }
 
+    function showRootAddForm(type, button) {
+        const form = document.getElementById('root-add-form');
+        const input = document.getElementById('root-add-input');
+        
+        const noteAction = "{{ url_for('add_note') }}";
+        const folderAction = "{{ url_for('add_folder') }}";
+        
+        if (type === 'note') {
+            form.action = noteAction;
+            input.name = 'note_title';
+            input.placeholder = 'New Root Note...';
+        } else {
+            form.action = folderAction;
+            input.name = 'folder_name';
+            input.placeholder = 'New Root Folder...';
+        }
+        
+        form.classList.remove('hidden');
+        input.focus();
+        
+        // Hide the control buttons
+        button.parentElement.classList.add('hidden');
+    }
+
 document.addEventListener('DOMContentLoaded', () => {
     const editorElement = document.getElementById('editorjs');
     const editorPane = document.querySelector('.notes-editor-pane');
@@ -313,35 +347,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 data: noteContentData,
                 
                 tools: {
-                    header: {
-                        class: Header,
-                        inlineToolbar: true
-                    },
-                    list: {
-                        class: List,
-                        inlineToolbar: true
-                    },
-                    paragraph: {
-                        class: Paragraph,
-                        inlineToolbar: true,
-                    },
-                    quote: {
-                        class: Quote,
-                        inlineToolbar: true
-                    },
-                    inlineCode: {
-                        class: InlineCode
-                    },
-                    code: {
-                        class: CodeTool
-                    },
-                    link: {
-                        class: LinkTool
-                    },
-                    table: {
-                        class: Table,
-                        inlineToolbar: true
-                    },
+                    header: { class: Header, inlineToolbar: true },
+                    list: { class: List, inlineToolbar: true },
+                    paragraph: { class: Paragraph, inlineToolbar: true },
+                    quote: { class: Quote, inlineToolbar: true },
+                    inlineCode: { class: InlineCode },
+                    code: { class: CodeTool },
+                    link: { class: LinkTool },
+                    table: { class: Table, inlineToolbar: true },
                 },
             });
 
@@ -351,10 +364,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             saveButton.addEventListener('click', (event) => {
                 event.preventDefault();
-
                 const noteTitle = titleInput.value;
                 const updateUrl = formContainer.getAttribute('action');
-
                 saveButton.disabled = true;
                 saveButton.textContent = 'Saving...';
 
@@ -399,7 +410,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Failed to initialize Editor.js:", error);
-            editorElement.innerHTML = '<div class="p-4 text-red-700 bg-red-100 rounded-md"><strong>Error: Could not load the note editor.</strong><p class="mt-2">The note data might be corrupted. This can happen if a previously saved note has an invalid format. To fix this, you may need to check the database directly.</p></div>';
+            editorElement.innerHTML = '<div class="p-4 text-red-700 bg-red-100 rounded-md"><strong>Error: could not load the note editor.</strong><p class="mt-2">The note data might be corrupted. This can happen if a previously saved note has an invalid format. To fix this, you may need to check the database directly.</p></div>';
             createToast('Failed to load editor for this note.', 'error');
         }
     }
