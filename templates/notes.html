@@ -1,5 +1,4 @@
 {% extends "index.html" %}
-<h1>IF YOU CAN SEE THIS, THE TEMPLATE IS UPDATED</h1>
 {% import '_macros.html' as macros with context %}
 
 {% macro render_tree(items, is_root, current_note_id) %}
@@ -177,7 +176,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (editorElement && editorPane && typeof noteContentData !== 'undefined') {
         
-        // Log the data object to the browser's console for debugging.
         console.log("Initializing Editor.js with the following data:", noteContentData);
 
         try {
@@ -186,14 +184,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 autofocus: true,
                 data: noteContentData,
                 
-                // Temporarily simplifying the toolset for debugging
+                // Restoring the full, correctly formatted tool configuration
                 tools: {
-                    header: Header,
+                    header: {
+                        class: Header,
+                        inlineToolbar: true
+                    },
+                    list: {
+                        class: List,
+                        inlineToolbar: true
+                    },
                     paragraph: {
                         class: Paragraph,
                         inlineToolbar: true,
                     },
-                    list: List, // Keeping list as it's a common, simple tool
+                    quote: {
+                        class: Quote,
+                        inlineToolbar: true
+                    },
+                    inlineCode: {
+                        class: InlineCode
+                    },
+                    linkTool: {
+                        class: LinkTool
+                    },
+                    table: {
+                        class: Table,
+                        inlineToolbar: true
+                    },
                 },
             });
 
