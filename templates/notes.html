@@ -74,18 +74,28 @@
 
     /* --- NEW EDITOR STYLES --- */
 
-    /* 1. Heading Font Sizes & Spacing */
+/* 1. Heading Font Sizes & Spacing */
     #editorjs h1 { 
-        @apply text-4xl font-bold pb-2 mb-4; 
+        @apply text-5xl font-black pb-2 mb-6; /* Larger and heavier weight */
         font-family: var(--font-brand);
     }
     #editorjs h2 { 
-        @apply text-3xl font-bold pb-2 mb-3 mt-1;
+        @apply text-3xl font-extrabold pb-3 mb-4 mt-6 relative; /* Bolder with more spacing */
         font-family: var(--font-brand);
-        border-bottom: 1px solid var(--color-border);
+    }
+    /* Adds a decorative accent line instead of a full underline for H2 */
+    #editorjs h2::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 4rem; /* 64px */
+        height: 3px;
+        background-color: var(--color-secondary);
+        border-radius: 2px;
     }
     #editorjs h3 { 
-        @apply text-2xl font-bold mb-2 mt-2;
+        @apply text-2xl font-extrabold mb-3 mt-5; /* Bolder with more top spacing */
         font-family: var(--font-brand);
     }
     #editorjs h4 { @apply text-xl font-semibold mb-1 mt-2; }
