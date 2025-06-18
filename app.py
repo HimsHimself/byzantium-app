@@ -434,10 +434,10 @@ def view_note(note_id):
             if not content_for_editor:
                 content_for_editor = {"time": int(datetime.now().timestamp() * 1000), "blocks": [], "version": "2.28.0"}
             
-            # *** FINAL FIX PART 1 ***
-            # Manually dump the dictionary to a JSON string before passing to the template.
-            # This gives us more control over the final output and avoids template filter issues.
-            current_note['content_for_editor'] = json.dumps(content_for_editor)
+            # *** FIX APPLIED HERE ***
+            # Pass the content dictionary directly to the template.
+            # The 'tojson' filter in Jinja2 will handle serialization correctly.
+            current_note['content_for_editor'] = content_for_editor
             # *** END OF FIX ***
 
             cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.source_note_id WHERE nr.target_note_id = %s ORDER BY n.title;", (note_id,))
