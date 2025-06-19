@@ -22,7 +22,6 @@ from werkzeug.utils import secure_filename
 import io
 import base64
 from markdown_it import MarkdownIt
-from collections import defaultdict
 
 app = Flask(__name__)
 
@@ -839,82 +838,61 @@ def add_food_log():
     return render_template('add_food_log.html', default_datetime=default_datetime)
 
 
+
 @app.route('/food_log/view')
 @login_required
 def view_food_log():
     try:
         conn = get_db()
-        search_query = request.args.get('q', '').strip()
-        
         london_tz = pytz.timezone("Europe/London")
-        thirty_days_ago = datetime.now(london_tz) - timedelta(days=30)
+        today_london = datetime.now(london_tz).date()
+        thirty_days_ago = datetime.now() - timedelta(days=30)
         
+        today_total_calories = 0
+
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("SELECT * FROM food_log WHERE user_id = 1 AND log_time >= %s ORDER BY log_time DESC", (thirty_days_ago,))
-            all_logs = cur.fetchall()
+            logs = cur.fetchall()
 
-        # Pre-process logs: format time and determine the correct local date for grouping
-        for log in all_logs:
-            # When psycopg2 fetches TIMESTAMPTZ, it returns a tz-aware datetime.
-            # We convert it to the local timezone ('Europe/London') to get the correct date and time for display.
-            london_log_time = log['log_time'].astimezone(london_tz)
-            log['formatted_time'] = london_log_time.strftime('%H:%M')
-            log['local_date'] = london_log_time.date()
+            for log in logs:
+                if log.get('log_time'):
+                    log['log_date'] = log['log_time'].date()
 
-        # Calculate daily totals using the pre-processed local date
-        daily_totals = defaultdict(int)
-        for log in all_logs:
-            if log['calories']:
-                daily_totals[log['local_date']] += log['calories']
-
-        today_london = datetime.now(london_tz).date()
-        today_total_calories = daily_totals.get(today_london, 0)
+            sql_today_calories = """
+                SELECT SUM(calories) as total
+                FROM food_log
+                WHERE user_id = 1 AND DATE(log_time AT TIME ZONE 'Europe/London') = %s;
+            """
+            cur.execute(sql_today_calories, (today_london,))
+            result = cur.fetchone()
+            if result and result['total'] is not None:
+                today_total_calories = int(result['total'])
         
-        # Filter logs for display if a search query is present
-        display_logs = all_logs
-        if search_query:
-            display_logs = [log for log in all_logs if search_query.lower() in log['description'].lower()]
-    
-        # Group the (potentially filtered) logs by their local date
-        logs_by_date = defaultdict(lambda: {'logs': [], 'daily_total': 0})
-        for log in display_logs:
-            log_date = log['local_date']
-            logs_by_date[log_date]['logs'].append(log)
-            # Assign the pre-calculated total for the entire day.
-            logs_by_date[log_date]['daily_total'] = daily_totals.get(log_date, 0)
-                
-        # Generate the calorie chart using the complete, unfiltered log data
         chart_url = None
-        if all_logs:
-            # Use the pre-calculated 'local_date' for pandas grouping
-            df = pd.DataFrame(all_logs)
-            daily_calories = df.groupby('local_date')['calories'].sum().reset_index().rename(columns={'local_date': 'date'})
+        if logs:
+            df = pd.DataFrame(logs)
+            df['date'] = pd.to_datetime(df['log_time']).dt.date
+            daily_calories = df.groupby('date')['calories'].sum().reset_index()
             
-            # Create a full date range to ensure all 30 days are plotted, even if no food was logged.
-            today = datetime.now(london_tz).date()
+            today = datetime.now().date()
             date_range = pd.date_range(start=today - timedelta(days=29), end=today, freq='D').to_frame(index=False, name='date')
             date_range['date'] = date_range['date'].dt.date
-            
             daily_calories = pd.merge(date_range, daily_calories, on='date', how='left').fillna(0)
             daily_calories = daily_calories.sort_values(by='date', ascending=True)
 
-            # --- Chart Styling & Plotting ---
             plt.style.use('seaborn-v0_8-whitegrid')
             fig, ax = plt.subplots(figsize=(12, 6))
             bar_color, line_color, bg_color, text_color, grid_color = '#4B0082', '#C59B08', '#FDFDF6', '#2d3748', '#e2e8f0'
-            
             fig.patch.set_facecolor(bg_color)
             ax.set_facecolor(bg_color)
-
             ax.bar(daily_calories['date'], daily_calories['calories'], color=bar_color, width=0.6, label='Total Daily Calories')
             ax.axhline(y=2000, color=line_color, linestyle='--', linewidth=2, label='2000 Calorie Target')
-
             ax.set_title('Total Daily Calories for the Last 30 Days', fontsize=16, fontweight='bold', color=text_color, pad=20)
             ax.set_xlabel('Date', fontsize=12, color=text_color, labelpad=10)
             ax.set_ylabel('Total Calories', fontsize=12, color=text_color, labelpad=10)
             ax.tick_params(axis='x', colors=text_color, rotation=45)
             ax.tick_params(axis='y', colors=text_color)
-            ax.grid(color=grid_color, which='major', linestyle='-', linewidth='0.5')
+            ax.grid(color=grid_color)
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
             ax.xaxis.set_major_locator(mdates.DayLocator(interval=3))
             plt.setp(ax.get_xticklabels(), ha="right")
@@ -924,18 +902,12 @@ def view_food_log():
             plt.tight_layout()
             
             img = io.BytesIO()
-            plt.savefig(img, format='png', transparent=True)
+            plt.savefig(img, format='png')
             img.seek(0)
             chart_url = base64.b64encode(img.getvalue()).decode()
             plt.close(fig)
 
-        logs_by_date_sorted = dict(sorted(logs_by_date.items(), reverse=True))
-
-        return render_template('view_food_log.html', 
-                               logs_by_date=logs_by_date_sorted, 
-                               chart_url=chart_url, 
-                               today_total=today_total_calories,
-                               search_query=search_query)
+        return render_template('view_food_log.html', logs=logs, chart_url=chart_url, today_total=today_total_calories)
 
     except Exception as e:
         log_activity('error', details={"function": "view_food_log", "error": str(e)})
