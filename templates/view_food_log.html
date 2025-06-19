@@ -1,90 +1,98 @@
 {% extends "index.html" %}
+{% from "_macros.html" import edit_icon %}
 
 {% block content %}
-{# FIX: Padding is removed from the main card and applied to children to fix the sticky header gap. #}
-<div class="content-card rounded-lg">
-    <div class="p-6 md:p-8">
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-semibold text-slate-800">
-                Food Log History
-            </h2>
-            <a href="{{ url_for('add_food_log') }}" class="text-sm font-semibold text-slate-600 hover:text-purple-700 transition-colors duration-200">
-                &larr; Back to Logging
-            </a>
-        </div>
-
-        {% if today_total is not none %}
-        <div class="p-4 bg-purple-50 border border-purple-200 rounded-lg text-center mb-8 shadow">
-            <h3 class="text-base font-medium text-slate-700 tracking-wide uppercase">Today's Total</h3>
-            <p class="text-4xl font-bold byzantine-purple-text mt-1">
-                {{ today_total }}
-                <span class="text-xl font-normal text-slate-500">/ 2000 kcal</span>
-            </p>
-        </div>
-        {% endif %}
-
-        {% if chart_url %}
-        <div class="mb-8">
-            <img src="{{ chart_url }}?v={{ range(1, 1000) | random }}" alt="Calories Chart" class="w-full h-auto rounded-lg shadow-md">
-        </div>
-        {% endif %}
+<div class="content-card rounded-lg p-6 md:p-8 space-y-8">
+    <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+        <h2 class="text-2xl font-semibold text-slate-800">
+            Food Log History
+        </h2>
+        <a href="{{ url_for('add_food_log') }}" class="text-sm font-semibold text-slate-600 hover:text-purple-700 transition-colors duration-200 self-start md:self-center">
+            &larr; Back to Logging
+        </a>
     </div>
 
-    {% if logs %}
-        <div class="md:hidden px-4 pb-6">
-            {% for group in logs | groupby('log_date') | reverse %}
-                <div class="day-group mb-6">
-                    <h3 class="text-base font-semibold text-slate-600 bg-slate-100 px-3 py-2 rounded-md mb-2 sticky top-0 z-10">
-                        Logs for {{ group.grouper.strftime('%A, %d %B %Y') }}
-                    </h3>
-                    {# FIX: The entire list is now a single CSS Grid for perfect column alignment. #}
-                    {# This robust structure prevents page overflow, fixing the "massive image" issue. #}
-                    <div class="grid grid-cols-[auto,auto,auto,1fr] gap-x-3 gap-y-0 text-sm items-baseline">
-                        {% for log in group.list %}
-                            {# Each data point is now a cell in the grid. A bottom border creates the row separator. #}
-                            <p class="text-xs text-slate-500 border-b border-slate-100 py-2.5">{{ log.log_time.strftime('%H:%M') }}</p>
-                            <p class="text-xs font-medium text-slate-600 border-b border-slate-100 py-2.5">{{ log.log_type }}</p>
-                            <p class="font-semibold text-slate-800 text-right border-b border-slate-100 py-2.5">{{ log.calories if log.calories is not none else '—' }}</p>
-                            <div class="border-b border-slate-100 py-2.5 truncate">
-                                <a href="{{ url_for('edit_food_log', log_id=log.id) }}" class="font-medium text-purple-700 truncate">
-                                    {{ log.description }}
-                                </a>
-                            </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            {% endfor %}
+    <!-- NEW: Search Form -->
+    <form method="GET" action="{{ url_for('view_food_log') }}">
+        <div class="flex gap-2">
+            <input 
+                type="text" 
+                name="q" 
+                value="{{ search_query or '' }}" 
+                placeholder="Filter by food description..."
+                class="form-input w-full p-2 rounded-md"
+            >
+            <button type="submit" class="btn-primary shrink-0 px-5 py-2 rounded-md">Search</button>
+            {% if search_query %}
+            <a href="{{ url_for('view_food_log') }}" class="btn-reset">Clear</a>
+            {% endif %}
         </div>
+    </form>
 
-        <div class="hidden md:block overflow-x-auto">
-            <table class="w-full text-sm text-left text-slate-500">
-                <thead class="text-xs text-slate-700 uppercase bg-slate-100">
-                    <tr>
-                        <th scope="col" class="px-6 py-3">Date & Time</th>
-                        <th scope="col" class="px-6 py-3">Type</th>
-                        <th scope="col" class="px-6 py-3">Description</th>
-                        <th scope="col" class="px-6 py-3">Calories</th>
-                        <th scope="col" class="px-6 py-3"><span class="sr-only">Actions</span></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for log in logs %}
-                    <tr class="bg-white border-b hover:bg-slate-50">
-                        <td class="px-6 py-2 font-medium text-slate-900 whitespace-nowrap">{{ log.log_time.strftime('%d %b %Y, %H:%M') }}</td>
-                        <td class="px-6 py-2">{{ log.log_type }}</td>
-                        <td class="px-6 py-2">{{ log.description }}</td>
-                        <td class="px-6 py-2">{{ log.calories if log.calories is not none else 'N/A' }}</td>
-                        <td class="px-6 py-2 text-right">
-                            <a href="{{ url_for('edit_food_log', log_id=log.id) }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">Edit</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <!-- REINSTATED: Calorie Chart -->
+    {% if chart_url %}
+    <div>
+        <h3 class="text-lg font-semibold text-slate-700 mb-4">60-Day Calorie Trend</h3>
+        <div class="bg-white p-4 rounded-lg shadow-inner border border-slate-200">
+            <img src="data:image/png;base64,{{ chart_url }}" alt="Calories Chart for the last 60 days" class="w-full h-auto rounded-md">
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- NEW: Display logs grouped by day with totals -->
+    {% if daily_logs %}
+        <div class="space-y-6">
+        {% for day in daily_logs %}
+            <div class="bg-slate-50/50 p-4 rounded-lg border border-slate-200">
+                <!-- Daily Summary Header -->
+                <div class="flex justify-between items-baseline mb-4 pb-3 border-b border-slate-200">
+                    <h3 class="font-semibold text-slate-700">{{ day.date.strftime('%A, %d %B %Y') }}</h3>
+                    <p class="font-bold brand-text text-lg">
+                        {{ day.total_calories }} <span class="text-sm font-normal text-slate-500">kcal total</span>
+                    </p>
+                </div>
+                
+                <!-- Table for the day's logs -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="text-xs text-slate-500 uppercase">
+                            <tr>
+                                <th scope="col" class="py-2 pr-4 w-24">Time</th>
+                                <th scope="col" class="py-2 px-4 w-28">Type</th>
+                                <th scope="col" class="py-2 px-4">Description</th>
+                                <th scope="col" class="py-2 px-4 text-right w-24">Calories</th>
+                                <th scope="col" class="py-2 pl-4 text-right w-16"><span class="sr-only">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in day.logs %}
+                            <tr class="border-b border-slate-200 last:border-b-0">
+                                <td class="py-2 pr-4 font-medium text-slate-800 whitespace-nowrap">{{ log.log_time.strftime('%H:%M') }}</td>
+                                <td class="py-2 px-4 text-slate-600">{{ log.log_type }}</td>
+                                <td class="py-2 px-4 text-slate-800">{{ log.description }}</td>
+                                <td class="py-2 px-4 text-right font-medium text-slate-800">{{ log.calories if log.calories is not none else 'N/A' }}</td>
+                                <td class="py-2 pl-4 text-right">
+                                    <a href="{{ url_for('edit_food_log', log_id=log.id) }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline inline-block p-1" title="Edit this entry">
+                                        {{ edit_icon('w-4 h-4') }}
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% endfor %}
         </div>
     {% else %}
-         <div class="p-6 text-center text-slate-500 italic">
-            Your food log is empty. Use the 'Back to Logging' link to start.
+        <div class="text-center py-10 px-6 bg-slate-50 rounded-lg">
+            <h3 class="text-lg font-semibold text-slate-700">No Logs Found</h3>
+            {% if search_query %}
+            <p class="text-slate-500 mt-1">Your search for "{{ search_query }}" did not match any entries.</p>
+            <a href="{{ url_for('view_food_log') }}" class="btn-primary mt-4 inline-block">Clear Search</a>
+            {% else %}
+            <p class="text-slate-500 mt-1">Your food log is empty. Get started by adding an entry.</p>
+            {% endif %}
         </div>
     {% endif %}
 </div>

@@ -845,38 +845,76 @@ def view_food_log():
     try:
         conn = get_db()
         london_tz = pytz.timezone("Europe/London")
-        today_london = datetime.now(london_tz).date()
-        thirty_days_ago = datetime.now() - timedelta(days=30)
         
-        today_total_calories = 0
-
+        # --- NEW: Get search query from URL parameters ---
+        search_query = request.args.get('q', '').strip()
+        
+        # --- MODIFIED: Changed timedelta to 60 days for a wider view ---
+        sixty_days_ago = datetime.now(london_tz) - timedelta(days=60)
+        
+        daily_logs_grouped = {}
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT * FROM food_log WHERE user_id = 1 AND log_time >= %s ORDER BY log_time DESC", (thirty_days_ago,))
-            logs = cur.fetchall()
-
-            for log in logs:
-                if log.get('log_time'):
-                    log['log_date'] = log['log_time'].date()
-
-            sql_today_calories = """
-                SELECT SUM(calories) as total
-                FROM food_log
-                WHERE user_id = 1 AND DATE(log_time AT TIME ZONE 'Europe/London') = %s;
+            # --- NEW: SQL query is now dynamic based on the search filter ---
+            sql_query = """
+                SELECT * FROM food_log 
+                WHERE user_id = 1 AND log_time >= %s
             """
-            cur.execute(sql_today_calories, (today_london,))
-            result = cur.fetchone()
-            if result and result['total'] is not None:
-                today_total_calories = int(result['total'])
-        
+            params = [sixty_days_ago]
+            
+            if search_query:
+                sql_query += " AND description ILIKE %s"
+                params.append(f"%{search_query}%")
+                
+            sql_query += " ORDER BY log_time DESC"
+            
+            cur.execute(sql_query, tuple(params))
+            logs_for_display = cur.fetchall()
+
+            # --- NEW: Process logs into groups with daily totals ---
+            for log in logs_for_display:
+                # Ensure log_time is timezone-aware for accurate grouping
+                log_date = log['log_time'].astimezone(london_tz).date()
+                if log_date not in daily_logs_grouped:
+                    daily_logs_grouped[log_date] = {
+                        'logs': [],
+                        'total_calories': 0
+                    }
+                daily_logs_grouped[log_date]['logs'].append(log)
+                if log.get('calories') is not None:
+                    daily_logs_grouped[log_date]['total_calories'] += log['calories']
+
+            # Convert dict to a sorted list for the template
+            # Sorting by date descending (most recent first)
+            processed_logs = sorted(
+                [
+                    {'date': date_obj, **data}
+                    for date_obj, data in daily_logs_grouped.items()
+                ],
+                key=lambda x: x['date'],
+                reverse=True
+            )
+
+            # --- MODIFIED: Graphing logic now uses a separate, unfiltered query ---
+            # This ensures the graph always shows the full 60-day trend.
+            cur.execute("""
+                SELECT log_time, calories FROM food_log 
+                WHERE user_id = 1 AND log_time >= %s AND calories IS NOT NULL
+            """, (sixty_days_ago,))
+            all_logs_for_graph = cur.fetchall()
+
+        # --- Graph Generation (Modified for 60 days) ---
         chart_url = None
-        if logs:
-            df = pd.DataFrame(logs)
-            df['date'] = pd.to_datetime(df['log_time']).dt.date
+        if all_logs_for_graph:
+            df = pd.DataFrame(all_logs_for_graph)
+            # Ensure proper timezone handling for accurate date grouping
+            df['date'] = pd.to_datetime(df['log_time']).dt.tz_convert(london_tz).dt.date
             daily_calories = df.groupby('date')['calories'].sum().reset_index()
             
-            today = datetime.now().date()
-            date_range = pd.date_range(start=today - timedelta(days=29), end=today, freq='D').to_frame(index=False, name='date')
+            today = datetime.now(london_tz).date()
+            # Correctly create a date range for the last 60 days
+            date_range = pd.date_range(start=today - timedelta(days=59), end=today, freq='D').to_frame(index=False, name='date')
             date_range['date'] = date_range['date'].dt.date
+            
             daily_calories = pd.merge(date_range, daily_calories, on='date', how='left').fillna(0)
             daily_calories = daily_calories.sort_values(by='date', ascending=True)
 
@@ -885,20 +923,26 @@ def view_food_log():
             bar_color, line_color, bg_color, text_color, grid_color = '#4B0082', '#C59B08', '#FDFDF6', '#2d3748', '#e2e8f0'
             fig.patch.set_facecolor(bg_color)
             ax.set_facecolor(bg_color)
-            ax.bar(daily_calories['date'], daily_calories['calories'], color=bar_color, width=0.6, label='Total Daily Calories')
+            
+            # Use a line plot for a cleaner look over 60 days
+            ax.plot(daily_calories['date'], daily_calories['calories'], color=bar_color, marker='o', markersize=4, linestyle='-', linewidth=2, label='Total Daily Calories')
+            ax.fill_between(daily_calories['date'], daily_calories['calories'], color=bar_color, alpha=0.1)
+            
             ax.axhline(y=2000, color=line_color, linestyle='--', linewidth=2, label='2000 Calorie Target')
-            ax.set_title('Total Daily Calories for the Last 30 Days', fontsize=16, fontweight='bold', color=text_color, pad=20)
+            
+            ax.set_title('Total Daily Calories for the Last 60 Days', fontsize=16, fontweight='bold', color=text_color, pad=20)
             ax.set_xlabel('Date', fontsize=12, color=text_color, labelpad=10)
             ax.set_ylabel('Total Calories', fontsize=12, color=text_color, labelpad=10)
             ax.tick_params(axis='x', colors=text_color, rotation=45)
             ax.tick_params(axis='y', colors=text_color)
             ax.grid(color=grid_color)
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
-            ax.xaxis.set_major_locator(mdates.DayLocator(interval=3))
+            # Adjust locator for a 60-day range
+            ax.xaxis.set_major_locator(mdates.DayLocator(interval=5)) 
             plt.setp(ax.get_xticklabels(), ha="right")
             ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False)
             ax.spines['left'].set_color(grid_color); ax.spines['bottom'].set_color(grid_color)
-            ax.legend(frameon=False, loc='upper left', bbox_to_anchor=(0, 1.1))
+            ax.legend(frameon=False, loc='upper left', bbox_to_anchor=(0, 1.15))
             plt.tight_layout()
             
             img = io.BytesIO()
@@ -907,13 +951,20 @@ def view_food_log():
             chart_url = base64.b64encode(img.getvalue()).decode()
             plt.close(fig)
 
-        return render_template('view_food_log.html', logs=logs, chart_url=chart_url, today_total=today_total_calories)
+        return render_template(
+            'view_food_log.html', 
+            daily_logs=processed_logs, 
+            chart_url=chart_url,
+            search_query=search_query # Pass the query back to the template
+        )
 
     except Exception as e:
         log_activity('error', details={"function": "view_food_log", "error": str(e)})
         flash("Error fetching food log history.", "error")
         traceback.print_exc()
+        # Redirect to the add page on error to avoid a crash loop
         return redirect(url_for('add_food_log'))
+
     
 @app.route('/food_log/edit/<int:log_id>', methods=['GET', 'POST'])
 @login_required
