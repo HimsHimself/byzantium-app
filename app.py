@@ -22,6 +22,7 @@ from werkzeug.utils import secure_filename
 import io
 import base64
 from markdown_it import MarkdownIt
+from collections import defaultdict
 
 app = Flask(__name__)
 
@@ -844,16 +845,27 @@ def add_food_log():
 def view_food_log():
     try:
         conn = get_db()
+        search_query = request.args.get('q', '').strip()
+        
         london_tz = pytz.timezone("Europe/London")
         today_london = datetime.now(london_tz).date()
         thirty_days_ago = datetime.now() - timedelta(days=30)
         
-        # --- Restored Today's Total Calorie Calculation ---
         today_total_calories = 0
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT * FROM food_log WHERE user_id = 1 AND log_time >= %s ORDER BY log_time DESC", (thirty_days_ago,))
+            
+            # --- Modified Query for Search ---
+            sql_logs = "SELECT * FROM food_log WHERE user_id = 1 AND log_time >= %s"
+            params = [thirty_days_ago]
+            if search_query:
+                sql_logs += " AND description ILIKE %s"
+                params.append(f"%{search_query}%")
+            sql_logs += " ORDER BY log_time DESC"
+            
+            cur.execute(sql_logs, tuple(params))
             logs = cur.fetchall()
 
+            # --- Calculate Today's Total Calories ---
             sql_today_calories = """
                 SELECT SUM(calories) as total
                 FROM food_log
@@ -864,9 +876,25 @@ def view_food_log():
             if result and result['total'] is not None:
                 today_total_calories = int(result['total'])
         
+        # --- Group logs by date for display ---
+        logs_by_date = defaultdict(lambda: {'logs': [], 'daily_total': 0})
+        for log in logs:
+            log_date = log['log_time'].astimezone(london_tz).date()
+            logs_by_date[log_date]['logs'].append(log)
+            if log['calories']:
+                logs_by_date[log_date]['daily_total'] += log['calories']
+                
+        # --- Chart Generation Logic ---
+        # The chart should be based on ALL logs in the last 30 days, not just filtered ones.
+        chart_logs = logs
+        if search_query:
+             with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM food_log WHERE user_id = 1 AND log_time >= %s ORDER BY log_time DESC", (thirty_days_ago,))
+                chart_logs = cur.fetchall()
+
         chart_url = None
-        if logs:
-            df = pd.DataFrame(logs)
+        if chart_logs:
+            df = pd.DataFrame(chart_logs)
             df['date'] = pd.to_datetime(df['log_time']).dt.date
             daily_calories = df.groupby('date')['calories'].sum().reset_index()
             
@@ -882,9 +910,7 @@ def view_food_log():
             fig.patch.set_facecolor(bg_color)
             ax.set_facecolor(bg_color)
 
-            # --- Ensured chart is a column (bar) chart ---
             ax.bar(daily_calories['date'], daily_calories['calories'], color=bar_color, width=0.6, label='Total Daily Calories')
-            # --- Ensured 2000 Calorie Target Line is present ---
             ax.axhline(y=2000, color=line_color, linestyle='--', linewidth=2, label='2000 Calorie Target')
 
             ax.set_title('Total Daily Calories for the Last 30 Days', fontsize=16, fontweight='bold', color=text_color, pad=20)
@@ -907,7 +933,13 @@ def view_food_log():
             chart_url = base64.b64encode(img.getvalue()).decode()
             plt.close(fig)
 
-        return render_template('view_food_log.html', logs=logs, chart_url=chart_url, today_total=today_total_calories)
+        logs_by_date_sorted = dict(sorted(logs_by_date.items(), reverse=True))
+
+        return render_template('view_food_log.html', 
+                               logs_by_date=logs_by_date_sorted, 
+                               chart_url=chart_url, 
+                               today_total=today_total_calories,
+                               search_query=search_query)
 
     except Exception as e:
         log_activity('error', details={"function": "view_food_log", "error": str(e)})
