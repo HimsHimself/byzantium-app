@@ -9,16 +9,16 @@
                 <details {{ 'open' if current_note and current_note.folder_id and item.id == current_note.folder_id else '' }}>
                     <summary class="group flex justify-between items-center px-1 py-0.5 rounded-md hover:bg-slate-200 cursor-pointer">
                         <div class="flex items-center gap-1.5 flex-grow truncate">
-                            {{ macros.chevron_right_icon(classes='chevron-arrow w-4 h-4 text-slate-400 mr-0.5 shrink-0 transition-transform duration-200') }}
-                            {{ macros.folder_icon(classes='w-4 h-4 text-amber-600 shrink-0') }}
+                            <svg class="chevron-arrow w-4 h-4 text-slate-400 mr-0.5 shrink-0 transition-transform duration-200" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+                            <svg class="w-4 h-4 text-amber-600 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M19.5 21a3 3 0 003-3v-9a3 3 0 00-3-3h-6.879a.75.75 0 01-.53-.22L11.53 5.22a.75.75 0 00-.53-.22H4.5a3 3 0 00-3 3v12a3 3 0 003 3h15z" /></svg>
                             <span class="text-sm font-medium text-slate-700 truncate">{{ item.name }}</span>
                         </div>
                         <div class="flex items-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                             <a href="#" onclick="toggleAddForm('add-folder-form-{{ item.id }}', event)" title="Add Subfolder" class="p-0.5 text-slate-500 hover:text-purple-600">
-                                {{ macros.folder_add_icon(classes='w-4 h-4') }}
+                                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M2 3.5A1.5 1.5 0 013.5 2h3.879a1.5 1.5 0 011.06.44l.822.822A1.5 1.5 0 0010.379 4H16.5A1.5 1.5 0 0118 5.5v1.5H3a1 1 0 00-1 1v6.5A1.5 1.5 0 003.5 16h13a1.5 1.5 0 001.5-1.5v-6.25a.75.75 0 00-1.5 0V14.5a.5.5 0 01-.5.5h-13a.5.5 0 01-.5-.5v-6.5a.5.5 0 01.5-.5H18V6a.5.5 0 00-.5-.5h-6.121a1.5 1.5 0 01-1.06-.44l-.822-.822A1.5 1.5 0 006.379 3H3.5A.5.5 0 003 3.5v6.25a.75.75 0 001.5 0V4a1 1 0 00-1-1z" /><path d="M14 10.5a.5.5 0 01.5-.5h1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1zM10.5 12a.5.5 0 00.5.5h1a.5.5 0 00.5-.5v-1a.5.5 0 00-.5-.5h-1a.5.5 0 00-.5.5v1z" /><path d="M14.5 12.5a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1a.5.5 0 01.5-.5h1z" /></svg>
                             </a>
                             <a href="#" onclick="toggleAddForm('add-note-form-{{ item.id }}', event)" title="Add Note" class="p-0.5 text-slate-500 hover:text-purple-600">
-                                {{ macros.note_add_icon(classes='w-4 h-4') }}
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                             </a>
                             <form action="{{ url_for('delete_folder', folder_id=item.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this folder and all its contents?');" class="p-0.5">
                                 <button type="submit" class="text-slate-500 hover:text-red-600" title="Delete Folder">
@@ -48,11 +48,11 @@
         {% else %} {# It's a note #}
             <li data-note-id="{{ item.id }}" class="tree-item group flex justify-between items-center px-1 py-0.5 rounded-md {% if current_note_id and current_note_id == item.id %}active{% else %}hover:bg-slate-200{% endif %}">
                 <a href="{{ url_for('view_note', note_id=item.id) }}" class="flex items-center gap-1.5 flex-grow truncate pr-2">
-                     {{ macros.note_icon(classes='w-4 h-4 text-slate-500 shrink-0') }}
+                     <svg class="w-4 h-4 text-slate-500 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M5.625 1.5c-1.036 0-1.875.84-1.875 1.875v17.25c0 1.035.84 1.875 1.875 1.875h12.75c1.035 0 1.875-.84 1.875-1.875V12.75A3.75 3.75 0 0016.5 9h-1.875a.375.375 0 01-.375-.375V6.75A3.75 3.75 0 0010.5 3h-4.875A1.875 1.875 0 005.625 1.5z" clip-rule="evenodd" /></svg>
                     <span class="text-sm font-medium truncate">{{ item.title }}</span>
                 </a>
                 <button type="button" data-note-id="{{ item.id }}" class="delete-note-btn shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-red-600 p-0.5 rounded-full">
-                    {{ macros.close_icon(classes='w-3.5 h-3.5')}}
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </li>
         {% endif %}
@@ -296,30 +296,12 @@
 {% endif %}
 
 <script>
-    /**
-     * Toggles the visibility of an add form within the folder tree.
-     * If the form is being shown, it ensures the parent <details> element is open.
-     */
     function toggleAddForm(formId, event) {
         event.preventDefault();
         event.stopPropagation();
         const formDiv = document.getElementById(formId);
         if (formDiv) {
-            const isHidden = formDiv.classList.contains('hidden');
-
-            // If we are about to show the form, ensure the parent <details> is open.
-            if (isHidden) {
-                const parentDetails = formDiv.closest('details');
-                if (parentDetails) {
-                    parentDetails.open = true;
-                }
-            }
-
-            // Toggle visibility. Using toggle with a force parameter can be tricky,
-            // so we'll just toggle and then check the state.
             formDiv.classList.toggle('hidden');
-
-            // If it's now visible, focus its input.
             if (!formDiv.classList.contains('hidden')) {
                 formDiv.querySelector('input[type="text"]').focus();
             }
@@ -346,10 +328,8 @@
         form.classList.remove('hidden');
         input.focus();
         
-        // Hide the parent div of the button that was clicked
-        if(button && button.parentElement) {
-            button.parentElement.classList.add('hidden');
-        }
+        // Hide the control buttons
+        button.parentElement.classList.add('hidden');
     }
 
 document.addEventListener('DOMContentLoaded', () => {
