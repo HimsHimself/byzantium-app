@@ -904,7 +904,11 @@ def view_food_log():
             img = io.BytesIO()
             plt.savefig(img, format='png')
             img.seek(0)
-            chart_url = base64.b64encode(img.getvalue()).decode()
+            # --- FIX ---
+            # Prepend the data URI scheme to the base64 string
+            chart_data = base64.b64encode(img.getvalue()).decode()
+            chart_url = f"data:image/png;base64,{chart_data}"
+            # --- END FIX ---
             plt.close(fig)
 
         return render_template('view_food_log.html', logs=logs, chart_url=chart_url, today_total=today_total_calories)
@@ -914,7 +918,8 @@ def view_food_log():
         flash("Error fetching food log history.", "error")
         traceback.print_exc()
         return redirect(url_for('add_food_log'))
-    
+
+
 @app.route('/food_log/edit/<int:log_id>', methods=['GET', 'POST'])
 @login_required
 def edit_food_log(log_id):

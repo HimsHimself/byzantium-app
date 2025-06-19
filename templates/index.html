@@ -158,6 +158,27 @@
             color: var(--color-text-secondary);
         }
 
+        /* NEW: Theme-aware Stat Card */
+        .stat-card {
+            background-color: var(--color-primary-light);
+            border: 1px solid color-mix(in srgb, var(--color-primary) 25%, var(--color-border));
+        }
+        .stat-card .stat-title {
+            color: var(--color-text-secondary);
+        }
+        .stat-card .stat-value {
+            color: var(--color-primary);
+        }
+        .stat-card .stat-unit {
+            color: var(--color-text-secondary);
+        }
+        [data-theme="mass-effect"] .stat-card {
+            border-color: var(--color-border);
+        }
+        [data-theme="mass-effect"] .stat-card .stat-title {
+            color: var(--color-text-primary); /* Brighter title for dark BG */
+        }
+
         /* Themed radio buttons for food log */
         .themed-radio-label {
             color: var(--color-text-secondary);
