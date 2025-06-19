@@ -1,99 +1,78 @@
 {% extends "index.html" %}
-{% from "_macros.html" import edit_icon %}
+{% import '_macros.html' as macros with context %}
 
 {% block content %}
-<div class="content-card rounded-lg p-6 md:p-8 space-y-8">
-    <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-        <h2 class="text-2xl font-semibold text-slate-800">
-            Food Log History
-        </h2>
-        <a href="{{ url_for('add_food_log') }}" class="text-sm font-semibold text-slate-600 hover:text-purple-700 transition-colors duration-200 self-start md:self-center">
-            &larr; Back to Logging
-        </a>
-    </div>
-
-    <!-- NEW: Search Form -->
-    <form method="GET" action="{{ url_for('view_food_log') }}">
-        <div class="flex gap-2">
-            <input 
-                type="text" 
-                name="q" 
-                value="{{ search_query or '' }}" 
-                placeholder="Filter by food description..."
-                class="form-input w-full p-2 rounded-md"
-            >
-            <button type="submit" class="btn-primary shrink-0 px-5 py-2 rounded-md">Search</button>
-            {% if search_query %}
-            <a href="{{ url_for('view_food_log') }}" class="btn-reset">Clear</a>
-            {% endif %}
-        </div>
-    </form>
-
-    <!-- REINSTATED: Calorie Chart -->
-    {% if chart_url %}
-    <div>
-        <h3 class="text-lg font-semibold text-slate-700 mb-4">60-Day Calorie Trend</h3>
-        <div class="bg-white p-4 rounded-lg shadow-inner border border-slate-200">
-            <img src="data:image/png;base64,{{ chart_url }}" alt="Calories Chart for the last 60 days" class="w-full h-auto rounded-md">
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- NEW: Display logs grouped by day with totals -->
-    {% if daily_logs %}
-        <div class="space-y-6">
-        {% for day in daily_logs %}
-            <div class="bg-slate-50/50 p-4 rounded-lg border border-slate-200">
-                <!-- Daily Summary Header -->
-                <div class="flex justify-between items-baseline mb-4 pb-3 border-b border-slate-200">
-                    <h3 class="font-semibold text-slate-700">{{ day.date.strftime('%A, %d %B %Y') }}</h3>
-                    <p class="font-bold brand-text text-lg">
-                        {{ day.total_calories }} <span class="text-sm font-normal text-slate-500">kcal total</span>
-                    </p>
+<div class="space-y-6">
+    {# Floating Header with Title and Totals #}
+    <div class="sticky top-[-32px] bg-opacity-80 backdrop-blur-sm z-10 -mx-8 -mt-8 px-8 pt-8 pb-4 bg-[var(--color-background)] border-b" style="border-color: var(--color-border);">
+        <div class="flex justify-between items-center">
+            <h1 id="pageTitle" class="text-2xl font-bold tracking-wider">Food Log</h1>
+            <div class="flex items-center gap-6">
+                <div>
+                    <div class="text-xs uppercase font-semibold text-right" style="color: var(--color-text-secondary);">Today's Total</div>
+                    <div class="text-2xl font-bold" style="color: var(--color-primary);">{{ today_total|int }} <span class="text-base font-medium" style="color: var(--color-text-secondary);">kcal</span></div>
                 </div>
-                
-                <!-- Table for the day's logs -->
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm text-left">
-                        <thead class="text-xs text-slate-500 uppercase">
-                            <tr>
-                                <th scope="col" class="py-2 pr-4 w-24">Time</th>
-                                <th scope="col" class="py-2 px-4 w-28">Type</th>
-                                <th scope="col" class="py-2 px-4">Description</th>
-                                <th scope="col" class="py-2 px-4 text-right w-24">Calories</th>
-                                <th scope="col" class="py-2 pl-4 text-right w-16"><span class="sr-only">Actions</span></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for log in day.logs %}
-                            <tr class="border-b border-slate-200 last:border-b-0">
-                                <td class="py-2 pr-4 font-medium text-slate-800 whitespace-nowrap">{{ log.log_time.strftime('%H:%M') }}</td>
-                                <td class="py-2 px-4 text-slate-600">{{ log.log_type }}</td>
-                                <td class="py-2 px-4 text-slate-800">{{ log.description }}</td>
-                                <td class="py-2 px-4 text-right font-medium text-slate-800">{{ log.calories if log.calories is not none else 'N/A' }}</td>
-                                <td class="py-2 pl-4 text-right">
-                                    <a href="{{ url_for('edit_food_log', log_id=log.id) }}" class="font-medium text-purple-600 hover:text-purple-800 hover:underline inline-block p-1" title="Edit this entry">
-                                        {{ edit_icon('w-4 h-4') }}
-                                    </a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+                <a href="{{ url_for('add_food_log') }}" class="btn-primary text-sm font-semibold px-4 py-2 rounded-md shrink-0">Add Entry</a>
             </div>
-        {% endfor %}
         </div>
-    {% else %}
-        <div class="text-center py-10 px-6 bg-slate-50 rounded-lg">
-            <h3 class="text-lg font-semibold text-slate-700">No Logs Found</h3>
-            {% if search_query %}
-            <p class="text-slate-500 mt-1">Your search for "{{ search_query }}" did not match any entries.</p>
-            <a href="{{ url_for('view_food_log') }}" class="btn-primary mt-4 inline-block">Clear Search</a>
-            {% else %}
-            <p class="text-slate-500 mt-1">Your food log is empty. Get started by adding an entry.</p>
-            {% endif %}
-        </div>
+    </div>
+
+    {# Chart Display #}
+    {% if chart_url %}
+    <div class="content-card p-4">
+        <img src="data:image/png;base64,{{ chart_url }}" alt="Column chart of total calories for the last 30 days" class="w-full h-auto">
+    </div>
     {% endif %}
+
+    {# Responsive Log Table ("Old Style") #}
+    <div class="content-card p-0">
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead style="background-color: color-mix(in srgb, var(--color-background), var(--color-text-primary) 3%);">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style="color: var(--color-text-secondary);">Date & Time</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style="color: var(--color-text-secondary);">Description</th>
+                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider" style="color: var(--color-text-secondary);">Calories</th>
+                        <th scope="col" class="relative px-6 py-3"><span class="sr-only">Edit</span></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y" style="border-color: var(--color-border); background-color: var(--color-surface);">
+                    {% if logs %}
+                        {% for log in logs %}
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm" style="color: var(--color-text-secondary);">
+                                <span class="font-medium" style="color: var(--color-text-primary);">{{ log.log_time.strftime('%b %d, %Y') }}</span>
+                                <span class="ml-2">{{ log.log_time.strftime('%H:%M') }}</span>
+                            </td>
+                            <td class="px-6 py-4 text-sm break-words" style="color: var(--color-text-primary); min-width: 250px;">{{ log.description }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold" style="color: var(--color-text-primary);">{{ log.calories or 'N/A' }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <a href="{{ url_for('edit_food_log', log_id=log.id) }}" class="font-semibold" style="color: var(--color-primary);">Edit</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-10 text-center text-sm" style="color: var(--color-text-secondary);">No food log entries found for the last 30 days.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// This script ensures the page title in the tab and header is set correctly,
+// overriding the default behavior from the base template if necessary.
+document.addEventListener('DOMContentLoaded', () => {
+    const pageTitleElement = document.getElementById('pageTitle');
+    if (pageTitleElement && pageTitleElement.textContent !== "Food Log") {
+         pageTitleElement.textContent = "Food Log";
+    }
+    document.title = "Byzantium | Food Log";
+});
+</script>
 {% endblock %}
