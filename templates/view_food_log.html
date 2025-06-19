@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="space-y-6">
-    {# Floating Header with Title and Totals - Unchanged #}
+    {# Floating Header with Title and Totals #}
     <div class="sticky top-[-32px] bg-opacity-80 backdrop-blur-sm z-10 -mx-8 -mt-8 px-8 pt-8 pb-4 bg-[var(--color-background)] border-b" style="border-color: var(--color-border);">
         <div class="flex justify-between items-center">
             <h1 id="pageTitle" class="text-2xl font-bold tracking-wider">Food Log</h1>
@@ -17,7 +17,7 @@
         </div>
     </div>
 
-    {# Chart Display - Unchanged #}
+    {# Chart Display #}
     {% if chart_url %}
     <div class="content-card p-4">
         <img src="data:image/png;base64,{{ chart_url }}" alt="Column chart of total calories for the last 30 days" class="w-full h-auto">
@@ -35,13 +35,13 @@
         </form>
     </div>
 
-    {# NEW: Loop for Daily Log Cards #}
+    {# Loop for Daily Log Cards #}
     {% if logs_by_date %}
         <div class="space-y-8">
             {% for date, data in logs_by_date.items() %}
-                <div class="content-card p-0"> {# A card for each day #}
-                    {# Daily Header #}
-                    <div class="flex justify-between items-center p-4 border-b" style="border-color: var(--color-border); background-color: color-mix(in srgb, var(--color-background), var(--color-text-primary) 3%);">
+                <div class="content-card p-0 overflow-hidden">
+                    {# Daily Header - NOW STICKY #}
+                    <div class="sticky top-16 flex justify-between items-center p-4 border-b z-[5]" style="background-color: var(--color-surface); border-color: var(--color-border);">
                         <h3 class="font-bold text-slate-800">{{ date.strftime('%A, %d %B %Y') }}</h3>
                         <p class="font-bold text-slate-800">Total: {{ data.daily_total|int }} kcal</p>
                     </div>
@@ -52,17 +52,17 @@
                             <tbody class="divide-y" style="border-color: var(--color-border);">
                                 {% for log in data.logs %}
                                 <tr>
-                                    <td class="px-4 py-3 whitespace-nowrap" style="color: var(--color-text-secondary); width: 1%; vertical-align: top;">
+                                    <td class="px-4 py-3 whitespace-nowrap" style="vertical-align: top; width: 1%;">
                                         <div class="font-medium" style="color: var(--color-text-primary);">{{ log.log_type }}</div>
-                                        <div>{{ log.log_time.strftime('%H:%M') }}</div>
+                                        <div style="color: var(--color-text-secondary);">{{ log.log_time.strftime('%H:%M') }}</div>
                                     </td>
                                     <td class="px-4 py-3" style="color: var(--color-text-primary); vertical-align: top;">
                                         {{ log.description }}
                                     </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-right font-semibold" style="color: var(--color-text-primary); width: 1%; vertical-align: top;">
+                                    <td class="px-4 py-3 whitespace-nowrap text-right font-semibold" style="color: var(--color-text-primary); vertical-align: top; width: 1%;">
                                         {{ log.calories or 'N/A' }}
                                     </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-right font-medium" style="color: var(--color-primary); width: 1%; vertical-align: top;">
+                                    <td class="px-4 py-3 whitespace-nowrap text-right font-medium" style="color: var(--color-primary); vertical-align: top; width: 1%;">
                                         <a href="{{ url_for('edit_food_log', log_id=log.id) }}" class="font-semibold">Edit</a>
                                     </td>
                                 </tr>
@@ -87,8 +87,6 @@
 
 {% block scripts %}
 <script>
-// This script ensures the page title in the tab and header is set correctly,
-// overriding the default behavior from the base template if necessary.
 document.addEventListener('DOMContentLoaded', () => {
     const pageTitleElement = document.getElementById('pageTitle');
     if (pageTitleElement && pageTitleElement.textContent !== "Food Log") {
