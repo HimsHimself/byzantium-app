@@ -148,6 +148,37 @@ def process_and_update_note_content(cursor, note_id, content_json):
 
 
 # --- Helper for building the notes and folders tree ---
+
+def get_breadcrumbs(cursor, note=None):
+    """
+    Generates a breadcrumb trail for a given note or the root.
+    """
+    # Fetch all folders into a map for efficient lookup
+    cursor.execute("SELECT id, name, parent_folder_id FROM folders WHERE user_id = 1")
+    all_folders_list = cursor.fetchall()
+    folders_by_id = {f['id']: f for f in all_folders_list}
+
+    breadcrumbs = []
+    if note:
+        # Start with the current note
+        breadcrumbs.append({'type': 'note', 'name': note['title']})
+        # Traverse up the folder hierarchy
+        folder_id = note.get('folder_id')
+        while folder_id:
+            folder = folders_by_id.get(folder_id)
+            if folder:
+                breadcrumbs.append({'type': 'folder', 'name': folder['name'], 'id': folder['id']})
+                folder_id = folder.get('parent_folder_id')
+            else:
+                folder_id = None
+        breadcrumbs.reverse() # Reverse to get root -> parent -> note order
+    else:
+        # Default for the main notes page
+        breadcrumbs.append({'type': 'root', 'name': "Scribe's Desk"})
+
+    return breadcrumbs
+
+
 def get_full_notes_hierarchy(cursor):
     cursor.execute("SELECT id, name, parent_folder_id FROM folders WHERE user_id = 1 ORDER BY name")
     all_folders = cursor.fetchall()
@@ -371,11 +402,13 @@ def notes_page():
         conn = get_db()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             notes_tree, orphaned_notes = get_full_notes_hierarchy(cur)
+            breadcrumbs = get_breadcrumbs(cur) # Generate breadcrumbs
 
         return render_template('notes.html',
                                notes_tree=notes_tree,
                                orphaned_notes=orphaned_notes,
-                               current_note=None)
+                               current_note=None,
+                               breadcrumbs=breadcrumbs) # Pass breadcrumbs to template
     except Exception as e:
         traceback.print_exc()
         flash("Error loading notes page.", "error")
@@ -428,27 +461,23 @@ def view_note(note_id):
             if not current_note:
                 flash('Note not found.', 'error')
                 return redirect(url_for('notes_page'))
+            
+            breadcrumbs = get_breadcrumbs(cur, current_note) # Generate breadcrumbs for the current note
 
             # --- DATA PREPARATION ---
             raw_content_from_db = current_note.get('content')
             content_for_editor = raw_content_from_db
             
-            # Handle legacy string-based content or corrupted data
             if isinstance(content_for_editor, str):
                 try:
                     content_for_editor = json.loads(content_for_editor)
                 except json.JSONDecodeError:
                     content_for_editor = convert_markdown_to_editorjs_json(content_for_editor)
 
-            # Ensure content is a valid dict, creating a default if it's empty
             if not content_for_editor:
                 content_for_editor = {"time": int(datetime.now().timestamp() * 1000), "blocks": [], "version": "2.28.0"}
             
-            # *** FIX APPLIED HERE ***
-            # Pass the content dictionary directly to the template.
-            # The 'tojson' filter in Jinja2 will handle serialization correctly.
             current_note['content_for_editor'] = content_for_editor
-            # *** END OF FIX ***
 
             cur.execute("SELECT n.id, n.title FROM notes n JOIN note_references nr ON n.id = nr.source_note_id WHERE nr.target_note_id = %s ORDER BY n.title;", (note_id,))
             backlinks = cur.fetchall()
@@ -461,7 +490,8 @@ def view_note(note_id):
                                current_note=current_note,
                                backlinks=backlinks,
                                outgoing_links=outgoing_links,
-                               all_folders_for_move=all_folders_for_move)
+                               all_folders_for_move=all_folders_for_move,
+                               breadcrumbs=breadcrumbs) # Pass breadcrumbs to template
     except Exception as e:
         traceback.print_exc()
         flash(f"Error viewing note: {e}", "error")

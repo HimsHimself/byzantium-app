@@ -64,87 +64,70 @@
 {% block content %}
 <style>
     /* --- Base & Desktop Styles --- */
-    .notes-container {
-        display: flex;
-        gap: 1.5rem;
-        height: calc(100vh - 120px);
+    .notes-container { 
+        display: flex; 
+        gap: 1.5rem; 
+        height: calc(100vh - 120px); 
     }
     .notes-explorer {
-        flex: 0 0 24rem;
-        background-color: var(--color-surface);
+        flex: 0 0 24rem; 
+        background-color: var(--color-surface); 
         border-radius: 0.75rem;
-        padding: 1rem;
-        overflow-y: auto;
+        padding: 1rem; 
+        overflow-y: auto; 
         border: 1px solid var(--color-border);
-        display: flex;
+        display: flex; 
         flex-direction: column;
-        transition: transform 0.3s ease-in-out;
     }
-    .notes-editor-pane {
-        flex: 1 1 auto;
-        display: flex;
-        flex-direction: column;
-        min-width: 0;
+    .notes-editor-pane { 
+        flex: 1 1 auto; 
+        display: flex; 
+        flex-direction: column; 
+        min-width: 0; 
     }
-    #mobile-notes-explorer-toggle {
-        display: none;
-    }
-    
-    /* --- Mobile Responsive Styles (for screens < 768px) --- */
+
+    /* --- Mobile Responsive Styles (< 768px) --- */
     @media (max-width: 767.98px) {
         .notes-container {
-            display: block;
+            flex-direction: column;
+            gap: 0;
             height: auto;
         }
+        
+        /* The explorer becomes the collapsible dropdown content */
         .notes-explorer {
-            position: fixed;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            height: 100vh;
-            width: 85%;
-            max-width: 360px;
-            transform: translateX(-100%);
-            z-index: 40; /* Above overlay */
+            flex-basis: auto;
+            border: none;
             border-radius: 0;
-            border-right: 1px solid var(--color-border);
-            border-left: 0;
-            border-top: 0;
-            border-bottom: 0;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            padding-top: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease-in-out, padding 0.4s ease-in-out;
+            background-color: transparent;
         }
-        .notes-explorer.is-open {
-            transform: translateX(0);
+        
+        .notes-explorer.is-expanded {
+            max-height: 70vh; /* Allow it to take most of the screen */
+            padding: 1rem;
+            border-bottom: 1px solid var(--color-border);
         }
-        #mobile-notes-explorer-toggle {
-            display: inline-flex;
+
+        #mobile-explorer-header .chevron-down-icon {
+            transition: transform 0.3s ease-out;
         }
-        /* On this page, hide the main sidebar toggle to avoid confusion */
-        #sidebarToggle {
-            display: none;
+        
+        #mobile-explorer-header.is-expanded .chevron-down-icon {
+            transform: rotate(180deg);
+        }
+
+        /* Adjust editor pane for mobile to remove desktop styling */
+        .notes-editor-pane .bg-white {
+            border-radius: 0;
+            border: none;
+            box-shadow: none;
         }
     }
 
-    /* --- Mobile Overlay --- */
-    .mobile-explorer-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: rgba(0,0,0,0.5);
-        z-index: 39; /* Sits below the explorer but above the content */
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.3s ease-in-out;
-    }
-    .mobile-explorer-overlay.is-open {
-        opacity: 1;
-        visibility: visible;
-    }
-
-
-    /* --- Original Styles (Unchanged) --- */
     .explorer-content { flex-grow: 1; }
     .tree-item a { color: var(--color-text-secondary); }
     .tree-item a:hover { color: var(--color-primary); }
@@ -177,13 +160,26 @@
     [data-theme="mass-effect"] #editorjs .ce-code__textarea { background-color: #010409; }
 </style>
 
-<div class="notes-container">
+<div class="md:hidden sticky top-0 z-10" style="background-color: var(--color-background); border-bottom: 1px solid var(--color-border);">
+    <div id="mobile-explorer-header" class="p-3 flex items-center justify-between cursor-pointer">
+        <div class="flex items-center gap-1.5 text-sm font-medium truncate" style="color: var(--color-text-secondary);">
+            {{ macros.folder_icon(classes='w-4 h-4 text-amber-600 shrink-0') }}
+            <div class="truncate">
+            {% for crumb in breadcrumbs %}
+                {% if not loop.first %}<span class="mx-1" style="color: var(--color-text-muted);">/</span>{% endif %}
+                <span class="{% if loop.last %}font-semibold{% endif %}" style="color: {% if loop.last %}var(--color-text-primary){% else %}var(--color-text-secondary){% endif %}">{{ crumb.name }}</span>
+            {% endfor %}
+            </div>
+        </div>
+        {{ macros.chevron_down_icon(classes='chevron-down-icon w-5 h-5 shrink-0 ml-2') }}
+    </div>
+</div>
 
-    <div id="mobile-explorer-overlay" class="mobile-explorer-overlay"></div>
+<div class="notes-container">
 
     <aside class="notes-explorer">
         <div class="explorer-content">
-            <h2 class="text-lg font-semibold text-slate-800 mb-2">Scribe's Desk</h2>
+            <h2 class="text-lg font-semibold text-slate-800 mb-2 hidden md:block">Scribe's Desk</h2>
             {{ render_tree(notes_tree, true, current_note.id if current_note else None) }}
 
             {% if orphaned_notes %}
@@ -214,10 +210,7 @@
         {% if current_note %}
             <div class="flex flex-col h-full bg-white rounded-lg border border-slate-200 shadow-sm">
                 <div id="note-editor-form" action="{{ url_for('update_note', note_id=current_note.id) }}">
-                    <div class="flex items-center gap-2 p-3 border-b border-slate-200">
-                        <button type="button" id="mobile-notes-explorer-toggle" class="items-center justify-center p-2 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700">
-                            {{ macros.bars_3_icon(classes='w-5 h-5') }}
-                        </button>
+                    <div class="flex items-center gap-4 p-3 border-b border-slate-200">
                         <input type="text" name="note_title" value="{{ current_note.title }}" class="form-input text-xl font-bold flex-grow p-2 border-transparent focus:border-slate-300 focus:ring-0">
                         <button type="button" id="save-button" class="btn-primary font-semibold py-2 px-6 rounded-md shrink-0">Save</button>
                     </div>
@@ -238,7 +231,7 @@
                 </div>
             </div>
         {% else %}
-            <div class="flex items-center justify-center h-full text-center text-slate-500 bg-white rounded-lg border border-dashed">
+            <div class="flex items-center justify-center h-full text-center text-slate-500 bg-white rounded-lg border border-dashed md:border">
                 <div>
                     {{ macros.document_duplicate_icon(classes='w-12 h-12 mx-auto text-slate-300') }}
                     <h3 class="mt-2 text-sm font-semibold text-slate-800">Select a Note</h3>
@@ -303,31 +296,19 @@
     }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // --- Mobile Explorer Dropdown Logic ---
+    const mobileHeader = document.getElementById('mobile-explorer-header');
+    const explorerPane = document.querySelector('.notes-explorer');
+
+    if (mobileHeader && explorerPane) {
+        mobileHeader.addEventListener('click', () => {
+            mobileHeader.classList.toggle('is-expanded');
+            explorerPane.classList.toggle('is-expanded');
+        });
+    }
+
     const editorElement = document.getElementById('editorjs');
     const editorPane = document.querySelector('.notes-editor-pane');
-    
-    // --- Mobile Explorer Logic ---
-    const explorer = document.querySelector('.notes-explorer');
-    const toggleButton = document.getElementById('mobile-notes-explorer-toggle');
-    const overlay = document.getElementById('mobile-explorer-overlay');
-
-    if (explorer && toggleButton && overlay) {
-        const openExplorer = () => {
-            explorer.classList.add('is-open');
-            overlay.classList.add('is-open');
-        };
-        const closeExplorer = () => {
-            explorer.classList.remove('is-open');
-            overlay.classList.remove('is-open');
-        };
-
-        toggleButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            openExplorer();
-        });
-
-        overlay.addEventListener('click', closeExplorer);
-    }
     
     if (editorElement && editorPane && typeof noteContentData !== 'undefined') {
         
