@@ -53,8 +53,8 @@
                     <h4 class="text-sm font-medium text-slate-600 mb-2">Attachments</h4>
                     <div class="flex flex-wrap gap-4">
                         {% for filename in log.attachments %}
-                        <a href="{{ url_for('serve_private_image', filename=filename) }}" target="_blank" rel="noopener noreferrer">
-                             <img src="{{ url_for('serve_private_image', filename=filename) }}" alt="Log attachment" class="h-24 w-24 object-cover rounded-md border border-slate-200 hover:opacity-80 transition-opacity">
+                        <a href="{{ url_for('serve_private_file', filename=filename) }}" target="_blank" rel="noopener noreferrer">
+                             <img src="{{ url_for('serve_private_file', filename=filename) }}" alt="Log attachment" class="h-24 w-24 object-cover rounded-md border border-slate-200 hover:opacity-80 transition-opacity">
                         </a>
                         {% endfor %}
                     </div>

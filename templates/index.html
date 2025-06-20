@@ -285,6 +285,10 @@
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h6.375M9 12h6.375M9 17.25h6.375M12 3c-1.12 0-2.096.342-2.844.975-1.017.907-1.656 2.22-1.656 3.652v1.5c0 1.432.639 2.745 1.656 3.652C9.904 13.158 10.88 13.5 12 13.5s2.096-.342 2.844-.975c1.017-.907 1.656-2.22 1.656-3.652v-1.5c0-1.432-.639-2.745-1.656-3.652C14.096 3.342 13.12 3 12 3z"></path></svg>
                 <span>Collection</span>
             </a>
+            <a href="{{ url_for('files_page') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if 'files_page' in request.endpoint %}active{% endif %}">
+                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M19.5 21a3 3 0 003-3v-9a3 3 0 00-3-3h-6.879a.75.75 0 01-.53-.22L11.53 5.22a.75.75 0 00-.53-.22H4.5a3 3 0 00-3 3v12a3 3 0 003 3h15z" /></svg>
+                <span>Files</span>
+            </a>
             <a href="{{ url_for('view_activity_log') }}" class="sidebar-link flex items-center space-x-3 py-3 px-4 rounded-md {% if request.endpoint == 'view_activity_log' %}active{% endif %}">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                 <span>Activity Log</span>

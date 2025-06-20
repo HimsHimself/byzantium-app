@@ -155,6 +155,23 @@ try:
     cur.execute(create_log_attachments_script)
     print("Table 'log_attachments' created successfully.")
 
+    # --- NEW: Table for generic file uploads ---
+    create_files_script = """
+    CREATE TABLE IF NOT EXISTS files (
+        id SERIAL PRIMARY KEY,
+        original_filename TEXT NOT NULL,
+        gcs_blob_name TEXT NOT NULL UNIQUE,
+        file_type VARCHAR(255),
+        file_size_bytes BIGINT,
+        user_id INTEGER NOT NULL DEFAULT 1,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        description TEXT
+    );
+    """
+    cur.execute(create_files_script)
+    print("Table 'files' created successfully.")
+
+
     conn.commit()
     cur.close()
     print("Database schema setup complete.")

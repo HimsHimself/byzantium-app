@@ -230,6 +230,16 @@ def delete_from_gcs(blob_name, bucket_name):
         print(f"Error deleting from GCS: {e}")
         log_activity('gcs_delete_error', details={'blob_name': blob_name, 'error': str(e)})
 
+def get_file_size(file_storage):
+    """Safely gets the size of a file stream."""
+    try:
+        file_storage.seek(0, os.SEEK_END)
+        size = file_storage.tell()
+        file_storage.seek(0) # Reset stream position for subsequent reads
+        return size
+    except Exception:
+        return 0 # Default to 0 if size cannot be determined
+
 
 # --- Markdown helper ---
 def convert_markdown_to_editorjs_json(markdown_text):
@@ -1601,12 +1611,100 @@ def view_activity_log():
         flash("Error fetching activity log.", "error")
         return redirect(url_for('hello'))
     
-# --- Other Routes ---
-@app.route('/images/<path:filename>')
+# --- File Management Routes ---
+@app.route('/files', methods=['GET'])
 @login_required
-def serve_private_image(filename):
+def files_page():
+    try:
+        conn = get_db()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT *, COALESCE(file_size_bytes, 0) as file_size_bytes FROM files WHERE user_id = 1 ORDER BY created_at DESC")
+            files = cur.fetchall()
+        return render_template('files.html', files=files)
+    except Exception as e:
+        log_activity('error', details={"function": "files_page", "error": str(e)})
+        flash("Error loading files page.", "error")
+        return redirect(url_for('hello'))
+
+@app.route('/files/upload', methods=['POST'])
+@login_required
+def upload_file():
+    if 'file' not in request.files or request.files['file'].filename == '':
+        flash('No file selected for upload.', 'error')
+        return redirect(url_for('files_page'))
+    
+    file_to_upload = request.files['file']
+    description = request.form.get('description', '')
+    original_filename = secure_filename(file_to_upload.filename)
+    
+    conn = get_db()
+    try:
+        if not GCS_BUCKET_NAME:
+            flash('File upload is not configured on the server.', 'error')
+            return redirect(url_for('files_page'))
+
+        file_size = get_file_size(file_to_upload)
+        gcs_blob_name = upload_to_gcs(file_to_upload, GCS_BUCKET_NAME)
+
+        if not gcs_blob_name:
+            flash('File upload to storage provider failed.', 'error')
+            return redirect(url_for('files_page'))
+        
+        with conn.cursor() as cur:
+            sql = """
+                INSERT INTO files (original_filename, gcs_blob_name, file_type, file_size_bytes, user_id, description, created_at)
+                VALUES (%s, %s, %s, %s, 1, %s, NOW())
+            """
+            cur.execute(sql, (original_filename, gcs_blob_name, file_to_upload.content_type, file_size, description))
+        conn.commit()
+        
+        flash(f"File '{original_filename}' uploaded successfully.", 'success')
+        log_activity('file_uploaded', details={'filename': original_filename, 'gcs_blob': gcs_blob_name})
+    
+    except Exception as e:
+        conn.rollback()
+        log_activity('file_upload_error', details={'error': str(e)})
+        flash(f"An error occurred: {e}", "error")
+        traceback.print_exc()
+        
+    return redirect(url_for('files_page'))
+
+@app.route('/files/delete/<int:file_id>', methods=['POST'])
+@login_required
+def delete_file(file_id):
+    conn = get_db()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT gcs_blob_name, original_filename FROM files WHERE id = %s AND user_id = 1", (file_id,))
+            file_data = cur.fetchone()
+        
+        if not file_data:
+            flash("File not found.", "error")
+            return redirect(url_for('files_page'))
+            
+        delete_from_gcs(file_data['gcs_blob_name'], GCS_BUCKET_NAME)
+        
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM files WHERE id = %s AND user_id = 1", (file_id,))
+        conn.commit()
+        
+        flash(f"File '{file_data['original_filename']}' deleted successfully.", 'success')
+        log_activity('file_deleted', details={'file_id': file_id, 'filename': file_data['original_filename']})
+        
+    except Exception as e:
+        conn.rollback()
+        log_activity('file_delete_error', details={'file_id': file_id, 'error': str(e)})
+        flash(f"An error occurred while deleting the file: {e}", "error")
+        traceback.print_exc()
+        
+    return redirect(url_for('files_page'))
+    
+# --- Other Routes ---
+@app.route('/files/<path:filename>')
+@login_required
+def serve_private_file(filename):
     if not GCS_BUCKET_NAME or not GOOGLE_CREDENTIALS_JSON:
-        return "Image serving is not configured.", 500
+        return "File serving is not configured.", 500
 
     try:
         credentials_info = json.loads(GOOGLE_CREDENTIALS_JSON)
@@ -1615,7 +1713,7 @@ def serve_private_image(filename):
         blob = bucket.blob(filename)
 
         if not blob.exists():
-            return "Image not found.", 404
+            return "File not found.", 404
             
         signed_url = blob.generate_signed_url(
             version="v4",
@@ -1626,9 +1724,9 @@ def serve_private_image(filename):
         return redirect(signed_url)
         
     except Exception as e:
-        log_activity('error', details={"function": "serve_private_image", "error": str(e)})
+        log_activity('error', details={"function": "serve_private_file", "error": str(e)})
         traceback.print_exc()
-        return "Error serving image.", 500
+        return "Error serving file.", 500
         
 
 if __name__ == '__main__':

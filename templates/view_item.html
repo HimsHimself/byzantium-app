@@ -80,8 +80,8 @@
             <div>
                 <dt class="text-sm font-medium text-slate-500 mb-2">Image</dt>
                 {# Both the link and the image source now use url_for to generate a secure, signed URL #}
-                <a href="{{ url_for('serve_private_image', filename=item.image_url) }}" target="_blank" rel="noopener noreferrer">
-                    <img src="{{ url_for('serve_private_image', filename=item.image_url) }}" alt="Image for {{ item.name }}" class="rounded-lg border border-slate-200 object-cover w-full h-auto max-h-80">
+                <a href="{{ url_for('serve_private_file', filename=item.image_url) }}" target="_blank" rel="noopener noreferrer">
+                    <img src="{{ url_for('serve_private_file', filename=item.image_url) }}" alt="Image for {{ item.name }}" class="rounded-lg border border-slate-200 object-cover w-full h-auto max-h-80">
                 </a>
             </div>
             {% endif %}

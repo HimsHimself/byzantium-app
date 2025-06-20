@@ -127,7 +127,7 @@
                 <div class="p-2 bg-slate-50/75 flex justify-between items-center rounded-b-lg">
                     <div class="font-medium">
                         {% if item.image_url %}
-                            <a href="{{ url_for('serve_private_image', filename=item.image_url) }}" target="_blank" rel="noopener noreferrer" class="text-purple-600 hover:text-purple-800 hover:underline px-2">
+                            <a href="{{ url_for('serve_private_file', filename=item.image_url) }}" target="_blank" rel="noopener noreferrer" class="text-purple-600 hover:text-purple-800 hover:underline px-2">
                                 View Image
                             </a>
                         {% else %}
@@ -180,7 +180,7 @@
                         <td class="px-6 py-3 align-middle whitespace-nowrap">{{ item.created_at.strftime('%d %b %Y') if item.created_at else 'N/A' }}</td>
                         <td class="px-6 py-3 text-center align-middle">
                             {% if item.image_url %}
-                                <a href="{{ url_for('serve_private_image', filename=item.image_url) }}" target="_blank" rel="noopener noreferrer" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">
+                                <a href="{{ url_for('serve_private_file', filename=item.image_url) }}" target="_blank" rel="noopener noreferrer" class="font-medium text-purple-600 hover:text-purple-800 hover:underline">
                                     View
                                 </a>
                             {% else %}
