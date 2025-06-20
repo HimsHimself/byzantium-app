@@ -1,13 +1,114 @@
-{# Macro for the edit (pencil) icon #}
-{% macro edit_icon(classes='w-5 h-5') %}
-<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="{{ classes }}">
-  <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 19.82a2.25 2.25 0 01-1.897 1.13l-2.685.8.8-2.685a2.25 2.25 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+{# templates/_macros.html #}
+
+{# Base macro for all icons to reduce repetition #}
+{% macro _icon_base(path, classes='w-6 h-6', fill='none', stroke='currentColor', stroke_width='1.5', view_box='0 0 24 24') %}
+<svg xmlns="http://www.w3.org/2000/svg" class="{{ classes }}" fill="{{ fill }}" viewBox="{{ view_box }}" stroke-width="{{ stroke_width }}" stroke="{{ stroke }}">
+  <path stroke-linecap="round" stroke-linejoin="round" d="{{ path }}" />
 </svg>
 {% endmacro %}
 
-{# Macro for the delete (trash) icon #}
-{% macro delete_icon(classes='w-5 h-5') %}
-<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="{{ classes }}">
-  <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.134-2.033-2.134H8.033c-1.12 0-2.033.954-2.033 2.134v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-</svg>
+{# --- Replaced/Updated Macros --- #}
+{% macro edit_icon(classes='w-5 h-5') %} {# Pencil Icon #}
+{{ _icon_base(
+    path='M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 19.82a2.25 2.25 0 01-1.897 1.13l-2.685.8.8-2.685a2.25 2.25 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125',
+    classes=classes
+) }}
+{% endmacro %}
+
+{% macro delete_icon(classes='w-5 h-5') %} {# Trash Icon #}
+{{ _icon_base(
+    path='M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.134-2.033-2.134H8.033c-1.12 0-2.033.954-2.033 2.134v.916m7.5 0a48.667 48.667 0 00-7.5 0',
+    classes=classes
+) }}
+{% endmacro %}
+
+{# --- New Icon Macros from index.html --- #}
+
+{% macro home_icon(classes='w-5 h-5') %}
+{{ _icon_base(
+    path='M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h7.5',
+    classes=classes
+) }}
+{% endmacro %}
+
+{% macro pencil_square_icon(classes='w-5 h-5') %}
+{{ _icon_base(
+    path='M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 19.82a2.25 2.25 0 01-1.897 1.13l-2.685.8.8-2.685a2.25 2.25 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125M12 15v5.25a2.25 2.25 0 01-2.25 2.25H4.5A2.25 2.25 0 012.25 20V7.5A2.25 2.25 0 014.5 5.25H9.75',
+    classes=classes
+) }}
+{% endmacro %}
+
+{% macro newspaper_icon(classes='w-5 h-5') %}
+{{ _icon_base(
+    path='M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-13.5h2.25A2.25 2.25 0 0118 7.5v10.5A2.25 2.25 0 0115.75 21h-10.5A2.25 2.25 0 013 18.5V4.5A2.25 2.25 0 015.25 3h5.25',
+    classes=classes
+) }}
+{% endmacro %}
+
+{% macro sparkles_icon(classes='w-5 h-5') %}
+{{ _icon_base(
+    path='M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.898 20.567L16.5 21.75l-.398-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.398a2.25 2.25 0 001.423-1.423L16.5 15.75l.398 1.183a2.25 2.25 0 001.423 1.423l1.183.398-1.183.398a2.25 2.25 0 00-1.423 1.423z',
+    classes=classes
+) }}
+{% endmacro %}
+
+{% macro archive_box_icon(classes='w-5 h-5') %}
+{{ _icon_base(
+    path='M3.75 4.5A2.25 2.25 0 001.5 6.75v10.5c0 1.242 1.008 2.25 2.25 2.25h16.5A2.25 2.25 0 0022.5 17.25V6.75A2.25 2.25 0 0020.25 4.5H3.75zM9.75 9.75h4.5v1.5h-4.5v-1.5z',
+    classes=classes
+) }}
+{% endmacro %}
+
+{% macro building_library_icon(classes='w-5 h-5') %}
+{{ _icon_base(
+    path='M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z',
+    classes=classes
+) }}
+{% endmacro %}
+
+{% macro folder_icon(classes='w-5 h-5') %}
+{{ _icon_base(
+    path='M19.5 21a3 3 0 003-3v-9a3 3 0 00-3-3h-6.879a.75.75 0 01-.53-.22L11.53 5.22a.75.75 0 00-.53-.22H4.5a3 3 0 00-3 3v12a3 3 0 003 3h15z',
+    classes=classes,
+    fill='currentColor',
+    stroke_width='0'
+) }}
+{% endmacro %}
+
+{% macro document_chart_bar_icon(classes='w-5 h-5') %}
+{{ _icon_base(
+    path='M3.75 3v11.25A2.25 2.25 0 006 16.5h12A2.25 2.25 0 0020.25 14.25V3.75A2.25 2.25 0 0018 1.5H6.75A2.25 2.25 0 004.5 3.75L3 3.75zM9 9h1.5v3H9v-3zm3 0h1.5v3h-1.5v-3zm3 0h1.5v3h-1.5v-3z',
+    classes=classes
+) }}
+{% endmacro %}
+
+{% macro arrow_left_on_rectangle_icon(classes='w-5 h-5') %}
+{{ _icon_base(
+    path='M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6A2.25 2.25 0 005.25 5.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75',
+    classes=classes
+) }}
+{% endmacro %}
+
+{% macro chevron_down_icon(classes='h-4 w-4') %}
+{{ _icon_base(
+    path='M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z',
+    classes=classes,
+    view_box='0 0 20 20',
+    fill='currentColor',
+    stroke_width='0'
+) }}
+{% endmacro %}
+
+{% macro bars_3_icon(classes='w-6 h-6') %}
+{{ _icon_base(
+    path='M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5',
+    classes=classes
+) }}
+{% endmacro %}
+
+{% macro check_circle_icon(classes='w-6 h-6') %}
+{{ _icon_base(
+    path='M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+    classes=classes
+) }}
 {% endmacro %}
