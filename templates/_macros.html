@@ -7,7 +7,8 @@
 </svg>
 {% endmacro %}
 
-{# --- Replaced/Updated Macros --- #}
+{# --- ICONS FOR GENERAL USE --- #}
+
 {% macro edit_icon(classes='w-5 h-5') %} {# Pencil Icon #}
 {{ _icon_base(
     path='M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 19.82a2.25 2.25 0 01-1.897 1.13l-2.685.8.8-2.685a2.25 2.25 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125',
@@ -22,7 +23,22 @@
 ) }}
 {% endmacro %}
 
-{# --- New Icon Macros from index.html --- #}
+{% macro plus_icon(classes='w-5 h-5') %}
+{{ _icon_base(
+    path='M12 4.5v15m7.5-7.5h-15',
+    classes=classes
+) }}
+{% endmacro %}
+
+{% macro x_mark_icon(classes='w-4 h-4') %}
+{{ _icon_base(
+    path='M6 18L18 6M6 6l12 12',
+    classes=classes,
+    stroke_width='2'
+) }}
+{% endmacro %}
+
+{# --- ICONS FOR NAVIGATION & SIDEBAR --- #}
 
 {% macro home_icon(classes='w-5 h-5') %}
 {{ _icon_base(
@@ -52,32 +68,9 @@
 ) }}
 {% endmacro %}
 
-{% macro archive_box_icon(classes='w-5 h-5') %}
-{{ _icon_base(
-    path='M3.75 4.5A2.25 2.25 0 001.5 6.75v10.5c0 1.242 1.008 2.25 2.25 2.25h16.5A2.25 2.25 0 0022.5 17.25V6.75A2.25 2.25 0 0020.25 4.5H3.75zM9.75 9.75h4.5v1.5h-4.5v-1.5z',
-    classes=classes
-) }}
-{% endmacro %}
-
 {% macro building_library_icon(classes='w-5 h-5') %}
 {{ _icon_base(
     path='M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z',
-    classes=classes
-) }}
-{% endmacro %}
-
-{% macro folder_icon(classes='w-5 h-5') %}
-{{ _icon_base(
-    path='M19.5 21a3 3 0 003-3v-9a3 3 0 00-3-3h-6.879a.75.75 0 01-.53-.22L11.53 5.22a.75.75 0 00-.53-.22H4.5a3 3 0 00-3 3v12a3 3 0 003 3h15z',
-    classes=classes,
-    fill='currentColor',
-    stroke_width='0'
-) }}
-{% endmacro %}
-
-{% macro document_chart_bar_icon(classes='w-5 h-5') %}
-{{ _icon_base(
-    path='M3.75 3v11.25A2.25 2.25 0 006 16.5h12A2.25 2.25 0 0020.25 14.25V3.75A2.25 2.25 0 0018 1.5H6.75A2.25 2.25 0 004.5 3.75L3 3.75zM9 9h1.5v3H9v-3zm3 0h1.5v3h-1.5v-3zm3 0h1.5v3h-1.5v-3z',
     classes=classes
 ) }}
 {% endmacro %}
@@ -89,16 +82,6 @@
 ) }}
 {% endmacro %}
 
-{% macro chevron_down_icon(classes='h-4 w-4') %}
-{{ _icon_base(
-    path='M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z',
-    classes=classes,
-    view_box='0 0 20 20',
-    fill='currentColor',
-    stroke_width='0'
-) }}
-{% endmacro %}
-
 {% macro bars_3_icon(classes='w-6 h-6') %}
 {{ _icon_base(
     path='M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5',
@@ -106,9 +89,113 @@
 ) }}
 {% endmacro %}
 
+{% macro chevron_down_icon(classes='h-5 w-5') %}
+{{ _icon_base(
+    path='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z',
+    classes=classes,
+    view_box='0 0 20 20',
+    fill='currentColor',
+    stroke_width='0'
+) }}
+{% endmacro %}
+
+{% macro chevron_right_icon(classes='w-4 h-4') %}
+{{ _icon_base(
+    path='M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z',
+    classes=classes,
+    view_box='0 0 20 20',
+    fill='currentColor',
+    stroke_width='0'
+) }}
+{% endmacro %}
+
+
+{# --- ICONS FOR DOCUMENTS & FILES --- #}
+
+{% macro folder_icon(classes='w-5 h-5') %}
+{{ _icon_base(
+    path='M19.5 21a3 3 0 003-3v-9a3 3 0 00-3-3h-6.879a.75.75 0 01-.53-.22L11.53 5.22a.75.75 0 00-.53-.22H4.5a3 3 0 00-3 3v12a3 3 0 003 3h15z',
+    classes=classes,
+    fill='currentColor',
+    stroke_width='0'
+) }}
+{% endmacro %}
+
+{% macro folder_plus_icon(classes='w-4 h-4') %}
+{{ _icon_base(
+    path='M2 3.5A1.5 1.5 0 013.5 2h3.879a1.5 1.5 0 011.06.44l.822.822A1.5 1.5 0 0010.379 4H16.5A1.5 1.5 0 0118 5.5v1.5H3a1 1 0 00-1 1v6.5A1.5 1.5 0 003.5 16h13a1.5 1.5 0 001.5-1.5v-6.25a.75.75 0 00-1.5 0V14.5a.5.5 0 01-.5.5h-13a.5.5 0 01-.5-.5v-6.5a.5.5 0 01.5-.5H18V6a.5.5 0 00-.5-.5h-6.121a1.5 1.5 0 01-1.06-.44l-.822-.822A1.5 1.5 0 006.379 3H3.5A.5.5 0 003 3.5v6.25a.75.75 0 001.5 0V4a1 1 0 00-1-1z M14 10.5a.5.5 0 01.5-.5h1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1z M10.5 12a.5.5 0 00.5.5h1a.5.5 0 00.5-.5v-1a.5.5 0 00-.5-.5h-1a.5.5 0 00-.5.5v1z M14.5 12.5a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-1a.5.5 0 01-.5-.5v-1a.5.5 0 01.5-.5h1z',
+    classes=classes,
+    view_box='0 0 20 20',
+    fill='currentColor',
+    stroke_width='0'
+) }}
+{% endmacro %}
+
+{% macro archive_box_icon(classes='w-5 h-5') %}
+{{ _icon_base(
+    path='M3.75 4.5A2.25 2.25 0 001.5 6.75v10.5c0 1.242 1.008 2.25 2.25 2.25h16.5A2.25 2.25 0 0022.5 17.25V6.75A2.25 2.25 0 0020.25 4.5H3.75zM9.75 9.75h4.5v1.5h-4.5v-1.5z',
+    classes=classes
+) }}
+{% endmacro %}
+
+{% macro document_chart_bar_icon(classes='w-5 h-5') %}
+{{ _icon_base(
+    path='M3.75 3v11.25A2.25 2.25 0 006 16.5h12A2.25 2.25 0 0020.25 14.25V3.75A2.25 2.25 0 0018 1.5H6.75A2.25 2.25 0 004.5 3.75L3 3.75zM9 9h1.5v3H9v-3zm3 0h1.5v3h-1.5v-3zm3 0h1.5v3h-1.5v-3z',
+    classes=classes
+) }}
+{% endmacro %}
+
 {% macro check_circle_icon(classes='w-6 h-6') %}
 {{ _icon_base(
     path='M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+    classes=classes
+) }}
+{% endmacro %}
+
+{% macro arrow_up_tray_icon(classes='w-5 h-5') %}
+{{ _icon_base(
+    path='M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5',
+    classes=classes
+) }}
+{% endmacro %}
+
+{% macro arrow_down_tray_icon(classes='w-5 h-5') %}
+{{ _icon_base(
+    path='M12 2.25a.75.75 0 01.75.75v11.69l3.22-3.22a.75.75 0 111.06 1.06l-4.5 4.5a.75.75 0 01-1.06 0l-4.5-4.5a.75.75 0 111.06-1.06l3.22 3.22V3a.75.75 0 01.75-.75zm-9 13.5a.75.75 0 01.75.75v2.25a1.5 1.5 0 001.5 1.5h13.5a1.5 1.5 0 001.5-1.5V16.5a.75.75 0 011.5 0v2.25a3 3 0 01-3 3H5.25a3 3 0 01-3-3V16.5a.75.75 0 01.75-.75z',
+    classes=classes,
+    view_box='0 0 24 24',
+    fill='currentColor',
+    stroke_width='0'
+) }}
+{% endmacro %}
+
+{% macro document_text_icon(classes='w-12 h-12') %}
+{{ _icon_base(
+    path='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+    classes=classes
+) }}
+{% endmacro %}
+
+{% macro document_plus_icon(classes='w-4 h-4') %}
+{{ _icon_base(
+    path='M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+    classes=classes
+) }}
+{% endmacro %}
+
+{% macro document_icon(classes='w-4 h-4') %}
+{{ _icon_base(
+    path='M5.625 1.5c-1.036 0-1.875.84-1.875 1.875v17.25c0 1.035.84 1.875 1.875 1.875h12.75c1.035 0 1.875-.84 1.875-1.875V12.75A3.75 3.75 0 0016.5 9h-1.875a.375.375 0 01-.375-.375V6.75A3.75 3.75 0 0010.5 3h-4.875A1.875 1.875 0 005.625 1.5z',
+    classes=classes,
+    fill='currentColor',
+    stroke_width='0',
+    view_box='0 0 24 24'
+) }}
+{% endmacro %}
+
+{% macro document_duplicate_icon(classes='w-12 h-12') %}
+{{ _icon_base(
+    path='M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z',
     classes=classes
 ) }}
 {% endmacro %}
